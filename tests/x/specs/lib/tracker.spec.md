@@ -36,6 +36,59 @@ reached and what is sounding.
 ---
     (500 250 400 31)
 
+### a song's tick rate counts its rows at the pace, tension leaves it, and a song of beats a minute has one
+
+```x
+(do (import x/audio/tracker)
+  (def t (Tracker make (lit (song "s" (tick-rate 50) (ticks 6) (tension-bpm 60) (instrument a) (pattern p (a "A3")) (order p)))))
+  (def own (Tracker row-ms t))
+  (Tracker tension! t 100)
+  (def tense (Tracker row-ms t))
+  (Tracker pace! t 50)
+  (def slow (Tracker row-ms t))
+  (def b (Tracker make (lit (song "b" (bpm 125) (rows 4) (ticks 6) (instrument a) (pattern p (a "A3")) (order p)))))
+  (def f (Tracker make (lit (song "f" (tick-rate 100 3) (ticks 1) (instrument a) (pattern p (a "A3")) (order p)))))
+  (list own tense slow (Tracker row-ms b) (Tracker row-ms f)))
+```
+---
+    (120 120 240 120 30)
+
+### a song that gives bpm and tick-rate, or a time that is none, raises
+
+```x
+(do (import x/audio/tracker)
+  (def make (fn (_ props cells) (guard (e (Err text e)) (Tracker name (Tracker make (List append (list (lit song) "s") props (list (lit (instrument a)) (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p)))))))))
+  (list (make (lit ((bpm 60) (tick-rate 50))) "A3")
+        (make (lit ((tick-rate 0))) "A3")
+        (make (lit ((tick-rate 50 0))) "A3")
+        (make (lit ((ticks 0))) "A3")
+        (make () "A3/m0")
+        (make () "A3/m")
+        (make () "A3/k0")
+        (make () "A3/h-1")
+        (make () "A3/kticks")
+        (make () "A3/m50,2/k3/h")))
+```
+---
+    ("Tracker: a song gives bpm or tick-rate, not both" "Tracker: tick-rate is NUM or NUM,DEN, each above 0" "Tracker: tick-rate is NUM or NUM,DEN, each above 0" "Tracker: a song's ticks are 1 or more" "Tracker: m is NUM or NUM,DEN, each above 0" "Tracker: m is NUM or NUM,DEN, each above 0" "Tracker: k is N, 1 or more" "Tracker: h is N, 0 or more" "Tracker: k is N, 1 or more" "s")
+
+### a song's names follow its time: a tick rate's beats a minute, and the ticks a k sets
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer)
+  (def m (Mixer make 1000 20))
+  (def t (Tracker make (lit (song "s" (tick-rate 50) (ticks 6) (rows 4) (instrument a) (pattern p (a "- -/k3 -")) (order p)))))
+  (def pick (fn (_) (List map (fn (_ k) (rest (Assoc entry k (Tracker names t)))) (lit (bpm ticks row tick)))))
+  (def before (pick))
+  (Tracker play! t m)
+  (Mixer block! m)
+  (def at-row-0 (pick))
+  (List for-each (fn (_ k) (Mixer block! m)) (lit (1 2 3 4 5 6)))
+  (list before at-row-0 (pick)))
+```
+---
+    ((125 6 120 20) (125 6 120 20) (250 3 60 20))
+
 ### a song that names what it does not have raises
 
 ```x
@@ -65,6 +118,51 @@ reached and what is sounding.
 ```
 ---
     ((0 . 1) (0 . 2) (1 . 0) (0 . 0))
+
+### rows start at the frame their exact time falls in, so a minute of rows a third of a second long ends on the minute
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer)
+  (def m (Mixer make 1000 250))
+  (def t (Tracker make (lit (song "s" (tick-rate 3) (ticks 1) (instrument a) (pattern p (a "- - -")) (pattern q (a "- - -")) (order p q)))))
+  (Tracker play! t m)
+  (def after (fn (self n) (if (< 0 n) (do (Mixer block! m) (self (- n 1))) (Tracker place t))))
+  (list (after 240) (after 1)))
+```
+---
+    ((0 . 0) (0 . 1))
+
+### a k sets the ticks a row and an m the tick rate, from their row on, whichever channel they are in
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer)
+  (def m (Mixer make 1000 20))
+  (def t (Tracker make (lit (song "s" (tick-rate 50) (ticks 6) (instrument a) (instrument b)
+                              (pattern p (a "- - . - -") (b "- -/k3 - -/m25 -"))
+                              (order p)))))
+  (Tracker play! t m)
+  (def after (fn (self n) (if (< 0 n) (do (Mixer block! m) (self (- n 1))) (pair (Tracker place t) (Tracker row-ms t)))))
+  (list (after 6) (after 1) (after 3) (after 3) (after 6)))
+```
+---
+    (((0 . 1) . 120) ((0 . 2) . 60) ((0 . 3) . 60) ((0 . 4) . 120) ((0 . 0) . 120))
+
+### an h holds its row more rows, the note in it held and not struck again
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer)
+  (def m (Mixer make 1000 40))
+  (def t (Tracker make (lit (song "s" (tick-rate 50) (ticks 6)
+                              (instrument a (env (0 100)) (release 10))
+                              (pattern p (a "A3/h2 . - - - - -"))
+                              (order p)))))
+  (Tracker play! t m)
+  (def count (fn (self n acc) (if (< 0 n) (do (Mixer block! m) (self (- n 1) (pair (Mixer playing m) acc))) (List reverse acc))))
+  (def sounding (count 14 ()))
+  (list sounding (Tracker place t)))
+```
+---
+    ((1 1 1 1 1 1 1 1 1 1 1 1 0 0) (0 . 3))
 
 ### a note sounds until the next cell that is not ".", then its release
 

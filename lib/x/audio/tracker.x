@@ -6,6 +6,8 @@
 ;   (song "NAME"
 ;     (bpm 60) (rows 4)              beats a minute, rows a beat
 ;     (ticks 6)                      ticks a row, for a cell's effects
+;     (tick-rate NUM DEN)            NUM/DEN ticks a second, in place of
+;                                    bpm and rows: a row is its ticks
 ;     (tension-bpm 30)               beats a minute added at full tension
 ;     (let gap (* 3 tick))           a name a number can be, worked out as
 ;                                    the song plays (see "Names" below)
@@ -33,12 +35,25 @@
 ; from the first row and a slide down from the second (see "A note's
 ; effects" below for the letters).
 ;
+; Time is counted in ticks.  A song gives its tick rate, (tick-rate NUM
+; DEN), or its beats a minute and rows a beat, which give B x R x N / 60
+; ticks a second at its (ticks N); a row lasts its ticks, so the song's
+; rows a beat and ticks a row only divide time, and the one rate counts
+; it.  Three effects change the time from their row on, whichever
+; channel they are in, as a module's speed and tempo do: m NUM,DEN the
+; tick rate (DEN 1 when not given), k N the ticks a row, and h N the row
+; held N rows more (1 when not given), its notes held and not struck
+; again.  A row starts at the frame its exact time falls in: what a row's
+; length leaves over a whole frame is carried to the next, so the song
+; does not drift.
+;
 ; Tension runs from 0 to 100: it speeds the tempo by its share of
-; tension-bpm, and weighs each instrument's notes by its layer, a calm
+; tension-bpm, in a song that gives beats a minute and while no m has
+; set its rate, and weighs each instrument's notes by its layer, a calm
 ; one's by what is left of 100 and a tension one's by the tension itself,
 ; so the one comes in as the other goes.  A note whose weight is 0 is not
 ; played.  A pace, a percentage, plays the whole song slower or faster
-; than that.  A change of song waits for the end of the pattern playing,
+; than that, whatever gives its rate.  A change of song waits for the end of the pattern playing,
 ; and brings the new song's effects in for the old one's: an effect of
 ; the same kind at the same place keeps what is ringing in it.
 (module x/audio/tracker)
@@ -57,9 +72,10 @@
 ; --- Songs -----------------------------------------------------------------
 ;
 ; A song made from its form: (NAME BPM ROWS TENSION-BPM EFFECTS INSTRUMENTS
-; PATTERNS ORDER TICKS LETS NAMED-EFFECTS NAMED), LETS its (let ...) forms
-; as (NAME . EXPR), NAMED-EFFECTS whether its effects use a name and NAMED
-; whether anything does.  An instrument is (NAME VOICES ENV RELEASE LAYER
+; PATTERNS ORDER TICKS LETS NAMED-EFFECTS NAMED RATE), LETS its (let ...)
+; forms as (NAME . EXPR), NAMED-EFFECTS whether its effects use a name,
+; NAMED whether anything does and RATE its tick rate, (NUM . DEN) or nil
+; for one of BPM.  An instrument is (NAME VOICES ENV RELEASE LAYER
 ; NAMED), NAMED whether its props use a name, a pattern (NAME CHANNEL ...),
 ; a channel (INSTRUMENT CELL ...), a cell (KIND NOTE PCT EFFECTS): KIND
 ; note, hold (".") or off ("-"), and each effect (LETTER ARG ...), an ARG
@@ -73,11 +89,15 @@
 ; A number in an instrument, a song effect or a cell's effect can be a
 ; name, worked out each time it is used, with the tempo then:
 ;
-;   bpm     beats a minute as played: the song's, its tension's share of
-;           tension-bpm added, at the pace
-;   rows    rows a beat         ticks   ticks a row
+;   bpm     beats a minute as played: the tick rate over rows rows of
+;           ticks ticks, so for a song of beats a minute its own, its
+;           tension's share of tension-bpm added, at the pace
+;   rows    rows a beat         ticks   ticks a row, as k last set them
 ;   row     a row's length in ms        beat    a beat's, rows rows
-;   tick    a tick's, a row over ticks, at least 1
+;   tick    a tick's, at least 1
+;
+; m, k and h take numbers, not names: they set the time the names are
+; worked out from.
 ;
 ; and any the song defines, (let NAME EXPR), each from the ones before
 ; it.  An instrument or a song effect can also have a sum where a number
@@ -189,7 +209,26 @@
       (%fail (Str8 append "not a number: " s)))
     (if neg (int- 0 (%digits ds)) (%digits ds))))
 
-(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "o" "x" "y" "c" "d" "r" "e"))
+; ARGS, (NUM) or (NUM DEN), as (NUM . DEN), DEN 1 when not given, for
+; WHAT.  Raises unless both are integers above 0.
+(def %fraction
+  (fn (_ args what)
+    (def num (if (null? args) () (first args)))
+    (def den (if (if (null? args) #t (null? (rest args))) 1 (first (rest args))))
+    (unless (if (Num int? num) (if (Num int? den) (if (int< 0 num) (int< 0 den) #f) #f) #f)
+      (%fail (Str8 append what " is NUM or NUM,DEN, each above 0")))
+    (pair num den)))
+
+(def %effect-letters (list "a" "v" "s" "p" "t" "f" "l" "w" "o" "x" "y" "c" "d" "r" "e" "m" "k" "h"))
+
+; Effect E, (LETTER ARG ...), checked when it is one of the time's.
+(def %timed
+  (fn (_ e)
+    (match ((str=? (first e) "m") (%fraction (rest e) "m"))
+           ((str=? (first e) "k") (unless (if (null? (rest e)) #f (if (Num int? (first (rest e))) (int< 0 (first (rest e))) #f)) (%fail "k is N, 1 or more")))
+           ((str=? (first e) "h") (unless (if (null? (rest e)) #t (if (Num int? (first (rest e))) (not (int< (first (rest e)) 0)) #f)) (%fail "h is N, 0 or more")))
+           (#t ()))
+    e))
 
 ; Whether S starts as a name does, with a letter.
 (def %name-text?
@@ -203,7 +242,7 @@
     (def letter (if (int< 0 (str-byte-len s)) (Str8 sub 0 1 s) ""))
     (unless (List any? (fn (_ l) (str=? l letter)) %effect-letters) (%fail (Str8 append "no effect " s)))
     (def args (Str8 sub 1 (int- (str-byte-len s) 1) s))
-    (pair letter (if (str=? args "") () (List map (fn (_ a) (if (%name-text? a) (str->sym a) (%int a))) (Str8 split "," args))))))
+    (%timed (pair letter (if (str=? args "") () (List map (fn (_ a) (if (%name-text? a) (str->sym a) (%int a))) (Str8 split "," args)))))))
 
 (def %note-gain
   (fn (_ cell)
@@ -251,6 +290,10 @@
     (when (null? order) (%fail "the song has no order"))
     (List for-each (fn (_ p) (when (null? (Assoc entry p patterns)) (%fail (Str8 append "no pattern named " (symbol->str p)))))
       order)
+    (def rate (%prop props (lit tick-rate)))
+    (when (if (null? rate) #f (not (null? (%prop props (lit bpm))))) (%fail "a song gives bpm or tick-rate, not both"))
+    (def ticks (%prop1 props (lit ticks) 6))
+    (unless (if (Num int? ticks) (int< 0 ticks) #f) (%fail "a song's ticks are 1 or more"))
     (def effects (List filter (fn (_ f) (if (pair? f) (List includes? (first f) %effect-heads) #f)) props))
     (def named-effects (List any? (fn (_ e) (%uses? e names)) effects))
     (def named-cells
@@ -261,9 +304,10 @@
     (list (first (rest form)) (%prop1 props (lit bpm) 90) (%prop1 props (lit rows) 4)
           (%prop1 props (lit tension-bpm) 0)
           effects
-          instruments patterns order (%prop1 props (lit ticks) 6)
+          instruments patterns order ticks
           lets named-effects
-          (if named-effects #t (if named-cells #t (List any? (fn (_ i) (List ref 5 (rest i))) instruments))))))
+          (if named-effects #t (if named-cells #t (List any? (fn (_ i) (List ref 5 (rest i))) instruments)))
+          (if (null? rate) () (%fraction (rest rate) "tick-rate")))))
 
 (def %s-bpm (fn (_ s) (List ref 1 s)))
 (def %s-rows (fn (_ s) (List ref 2 s)))
@@ -276,27 +320,38 @@
 (def %s-lets (fn (_ s) (List ref 9 s)))
 (def %s-named-effects (fn (_ s) (List ref 10 s)))
 (def %s-named (fn (_ s) (List ref 11 s)))
+(def %s-rate (fn (_ s) (List ref 12 s)))
 
 ; --- Trackers --------------------------------------------------------------
 ;
 ; A vector record: the song, the song waiting, the place in the order, the
 ; row, the tension, whether it has been stopped, the pace, a percentage of
 ; the song's own tempo, the names its effects have in the mixer, each
-; a pair of its own, so two trackers in one mixer keep theirs apart, and
-; each channel's last note, ((CHANNEL . NOTE) ...), for a portamento, and
-; the song's effects as last put, their names worked out.
+; a pair of its own, so two trackers in one mixer keep theirs apart, each
+; channel's last note, ((CHANNEL . NOTE) ...), for a portamento, the
+; song's effects as last put, their names worked out, the tick rate,
+; (NUM . DEN) or nil for the song's beats a minute, the ticks a row, and
+; the part of a frame the rows so far have left over, (NUM . PART), PART
+; in NUMths of a frame.
 
 (def %vector-type ((prim-ref (lit type) (lit of)) (Vector make 0 ())))
 (def %get (fn (_ r k) (obj-ref r (int+ k 1))))
 (def %put! (fn (_ r k x) (obj-set! r (int+ k 1) x)))
 
 (def %t-song 0) (def %t-next 1) (def %t-at 2) (def %t-row 3) (def %t-tension 4) (def %t-stopped 5)
-(def %t-pace 6) (def %t-names 7) (def %t-last 8) (def %t-specs 9)
+(def %t-pace 6) (def %t-names 7) (def %t-last 8) (def %t-specs 9) (def %t-rate 10) (def %t-ticks 11)
+(def %t-carry 12)
+
+; The time of song S at its start: its tick rate and ticks a row.
+(def %time!
+  (fn (_ t s)
+    (%put! t %t-rate (%s-rate s))
+    (%put! t %t-ticks (%s-ticks s))))
 
 (def %make
   (fn (_ form)
-    (def t (obj-make %vector-type 11))
-    (obj-set! t 0 10)
+    (def t (obj-make %vector-type 14))
+    (obj-set! t 0 13)
     (%put! t %t-song (%song form))
     (%put! t %t-next ())
     (%put! t %t-at 0)
@@ -307,6 +362,8 @@
     (%put! t %t-names ())
     (%put! t %t-last ())
     (%put! t %t-specs ())
+    (%time! t (%get t %t-song))
+    (%put! t %t-carry (pair 0 0))
     t))
 
 (def %pattern-now
@@ -318,11 +375,92 @@
 (def %pattern-rows
   (fn (_ p) (List fold (fn (_ acc ch) ((fn (_ n) (if (int< acc n) n acc)) (List length (rest ch)))) 0 p)))
 
-(def %row-ms
-  (fn (_ t)
+; --- Time ------------------------------------------------------------------
+;
+; A time is (RATE . TICKS): the tick rate, (NUM . DEN) ticks a second or nil
+; for the song's beats a minute, and the ticks a row.
+
+(def %gcd (fn (self a b) (if (int= b 0) a (self b (int% a b)))))
+
+; The ticks a second at RATE, at the tension and the pace, (NUM . DEN) in
+; lowest terms: a song's beats a minute B, rows a beat R and ticks a row N
+; give B x R x N / 60.
+(def %rate
+  (fn (_ t rate)
     (def s (%get t %t-song))
+    (def pace (%get t %t-pace))
     (def bpm (int+ (%s-bpm s) (int/ (int* (%s-tbpm s) (%get t %t-tension)) 100)))
-    (int/ 6000000 (int* (int* bpm (%s-rows s)) (%get t %t-pace)))))
+    ((fn (_ n d) ((fn (_ g) (pair (int/ n g) (int/ d g))) (%gcd n d)))
+     (if (null? rate) (int* (int* (int* bpm (%s-rows s)) (%s-ticks s)) pace) (int* (first rate) pace))
+     (int* (if (null? rate) 60 (rest rate)) 100))))
+
+; N ticks at RATE, (NUM . DEN) ticks a second, in units U a second, from
+; PART NUMths of a unit left over: (UNITS . PART).  Tick by tick, so no
+; product is larger than a unit's NUMths in a tick.
+(def %count
+  (fn (_ rate n u part)
+    ((fn (self k whole c)
+       (if (int< k 1) (pair whole c)
+         ((fn (_ total) (self (int- k 1) (int+ whole (int/ total (first rate))) (int% total (first rate))))
+          (int+ c (int* u (rest rate))))))
+     n 0 part)))
+
+; The part left over of CARRY, (NUM . PART), at RATE: none when the rate's
+; NUM is another.
+(def %part (fn (_ carry rate) (if (int= (first carry) (first rate)) (rest carry) 0)))
+
+(def %time-letters (list "m" "k" "h"))
+
+; The time effects of row ROW of pattern P, each channel's in turn.
+(def %row-times
+  (fn (_ p row)
+    (List flat-map
+      (fn (_ ch)
+        ((fn (_ cs) (if (null? cs) ()
+                      (List filter (fn (_ e) (List any? (fn (_ l) (str=? l (first e))) %time-letters)) (List ref 3 (first cs)))))
+         (List drop row (rest ch))))
+      p)))
+
+; TIME after a row's time effects ES: an m sets the rate, a k the ticks.
+(def %time-after
+  (fn (_ time es)
+    (List fold
+      (fn (_ tm e)
+        (match ((str=? (first e) "m") (pair (%fraction (rest e) "m") (rest tm)))
+               ((str=? (first e) "k") (pair (first tm) (first (rest e))))
+               (#t tm)))
+      time es)))
+
+; The rows more a row's time effects ES hold it: the last h's, 1 when it
+; gives no N, 0 when there is none.
+(def %hold
+  (fn (_ es)
+    (List fold (fn (_ n e) (if (str=? (first e) "h") (if (null? (rest e)) 1 (first (rest e))) n)) 0 es)))
+
+; The ticks row ROW of pattern P lasts at TIME, its hold counted.
+(def %row-ticks (fn (_ p row time) (int* (rest time) (int+ 1 (%hold (%row-times p row))))))
+
+; The ms from the start of row ROW of pattern P to the start of each of
+; the H rows after it, from its own 0, (0 MS ...): row ROW at the time now,
+; each after it at the time its effects give.
+(def %offsets
+  (fn (_ t p row h)
+    ((fn (self j time carry at acc)
+       (if (int< j h)
+         (do (def tm (if (int= j 0) time (%time-after time (%row-times p (int+ row j)))))
+             (def r (%rate t (first tm)))
+             (def d (%count r (%row-ticks p (int+ row j) tm) 1000 (%part carry r)))
+             (self (int+ j 1) tm (pair (first r) (rest d)) (int+ at (first d)) (pair (int+ at (first d)) acc)))
+         (List reverse acc)))
+     0 (pair (%get t %t-rate) (%get t %t-ticks)) (pair 0 0) 0 (list 0))))
+
+; A row's length in ms at the time now, its hold not counted.
+(def %row-ms
+  (fn (_ t) (first (%count (%rate t (%get t %t-rate)) (%get t %t-ticks) 1000 0))))
+
+; A tick's length in ms at the time now, 1 at the least.
+(def %tick-ms
+  (fn (_ t) (%max 1 (first (%count (%rate t (%get t %t-rate)) 1 1000 0)))))
 
 ; The names the song playing in T has now, ((NAME . VALUE) ...): its own,
 ; from the tempo, then its lets in order.
@@ -330,10 +468,13 @@
   (fn (_ t)
     (def s (%get t %t-song))
     (def row (%row-ms t))
-    (def bpm (int/ (int* (int+ (%s-bpm s) (int/ (int* (%s-tbpm s) (%get t %t-tension)) 100)) (%get t %t-pace)) 100))
+    (def ticks (%get t %t-ticks))
+    (def r (%rate t (%get t %t-rate)))
+    (def d (int* (rest r) (int* (%s-rows s) ticks)))
+    (def bpm (int+ (int* 60 (int/ (first r) d)) (int/ (int* 60 (int% (first r) d)) d)))
     (List fold (fn (_ env l) (List append env (list (pair (first l) (%resolve (rest l) env)))))
-      (list (pair (lit bpm) bpm) (pair (lit rows) (%s-rows s)) (pair (lit ticks) (%s-ticks s))
-            (pair (lit row) row) (pair (lit beat) (int* row (%s-rows s))) (pair (lit tick) (%max 1 (int/ row (%s-ticks s)))))
+      (list (pair (lit bpm) bpm) (pair (lit rows) (%s-rows s)) (pair (lit ticks) ticks)
+            (pair (lit row) row) (pair (lit beat) (int* row (%s-rows s))) (pair (lit tick) (%tick-ms t)))
       (%s-lets s))))
 
 ; The song's effects in T with their names worked out from ENV.
@@ -379,7 +520,7 @@
 ;
 ; A note's effects are known when it starts: its own cell's and those of
 ; the "." cells it is held over, each from its row.  Times are ms from the
-; note's start; a tick is a row over the song's ticks.  An effect holds
+; note's start; a tick is its length at the note's row.  An effect holds
 ; until the next of its letter in the note, or the note's end:
 ;
 ;   a X,Y,...   arpeggio: the note, then X, then Y ... semitones up, a tick each
@@ -402,6 +543,10 @@
 ;   e MS,P,N    echo: the note again MS ms later at P percent (50), N times
 ;               (1), each at P percent of the one before
 ;
+; and three that are the song's time, not the note's, from their row on
+; (see the module's notes): m NUM,DEN the tick rate, k N the ticks a row,
+; h N the row held N rows more.
+;
 ; The pitch and the level are paths of points: a voice's (bend (MS CENTS)
 ; ...) and its envelope, straight between, with a point either side of
 ; where one jumps.
@@ -418,13 +563,13 @@
      cells 0 ())))
 
 ; FX's effects LETTER as spans (FROM TO ARGS) in ms: each from its row to
-; the next of its letter, the last to END.
+; the next of its letter, the last to END, row K starting AT K ms in.
 (def %spans
-  (fn (_ fx letter ms end)
+  (fn (_ fx letter at end)
     ((fn (self es)
        (if (null? es) ()
-         (pair (list (%min end (int* ms (first (first es))))
-                     (if (null? (rest es)) end (%min end (int* ms (first (first (rest es))))))
+         (pair (list (%min end (at (first (first es))))
+                     (if (null? (rest es)) end (%min end (at (first (first (rest es))))))
                      (rest (rest (first es))))
                (self (rest es)))))
      (List filter (fn (_ e) (str=? (first (rest e)) letter)) fx))))
@@ -501,21 +646,22 @@
               (first pts) (first (rest pts))))
            (#t (self (rest pts) t)))))
 
-; A note LEN ms long with the effects FX at MS a row and TICK a tick, its
+; A note LEN ms long with the effects FX, its row K starting AT K ms in,
+; at TICK ms a tick, its
 ; instrument's envelope ENV let go over RELEASE, glided from FROM cents
 ; (nil for none): (ENV BEND FILTER WIDTHS CUTOFFS), BEND nil when its
 ; pitch is not moved and FILTER when its low-pass is not, WIDTHS and
 ; CUTOFFS the spans of its widths and cutoffs, nil for none.
 (def %shape
-  (fn (_ fx len ms tick env release from)
+  (fn (_ fx len at tick env release from)
     (def end (int+ len release))
-    (def arps (%spans fx "a" ms end))
-    (def vibs (%spans fx "v" ms end))
-    (def slides (%spans fx "s" ms len))
+    (def arps (%spans fx "a" at end))
+    (def vibs (%spans fx "v" at end))
+    (def slides (%spans fx "s" at len))
     (def glide (if (null? from) () (pair from (int* tick (%fx-arg (%fx fx "p") 1)))))
-    (def fades (%spans fx "f" ms len))
-    (def lows (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "l" ms len)))
-    (def trems (%spans fx "t" ms end))
+    (def fades (%spans fx "f" at len))
+    (def lows (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "l" at len)))
+    (def trems (%spans fx "t" at end))
     (def vib-per (fn (_ sp) (%period (List ref 1 (List ref 2 sp)) tick 4)))
     (def trem-per (fn (_ sp) (%period (List ref 1 (List ref 2 sp)) tick 2)))
     (def two? (fn (_ sp) (int< 1 (List length (List ref 2 sp)))))
@@ -561,8 +707,8 @@
           (if (null? lows) ()
             (%path (%times (List append (list 0 end) (List flat-map (fn (_ sp) (list (first sp) (first (rest sp)))) lows)) end)
                    (fn (_ t _) (product (List map (toward t) lows)))))
-          (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "w" ms len))
-          (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "o" ms len)))))
+          (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "w" at len))
+          (List filter (fn (_ sp) (not (null? (List ref 2 sp)))) (%spans fx "o" at len)))))
 
 ; The path of SPANS, a letter's spans from %shape, over END ms from FROM:
 ; each span moves it to its argument, and it holds between.
@@ -617,17 +763,18 @@
     ((fn (self args k) (match ((null? args) default) ((int= k 0) (first args)) (#t (self (rest args) (int- k 1)))))
      (rest (rest e)) k)))
 
-; The note at the head of CELLS, in channel CI, started in M at MS a row:
-; each voice of instrument INST at W percent, shaped by its effects.
+; The note at the head of CELLS, in channel CI, started in M: its rows
+; starting OFFS ms in, (0 MS ...), each a tick TICK ms long; each voice
+; of instrument INST at W percent, shaped by its effects.
 (def %note!
-  (fn (_ t m ci cells ms inst w env)
+  (fn (_ t m ci cells offs tick inst w env)
     (def cell (first cells))
     (def note (List ref 1 cell))
     (def h (%held (rest cells) 1))
     (def fx ((fn (_ es) (if (null? env) es (List map (fn (_ e) (%resolve e env)) es))) (%note-effects cells h)))
-    (def tick (%max 1 (int/ ms (%s-ticks (%get t %t-song)))))
+    (def row-at (fn (_ k) (List ref k offs)))
     (def cut (%fx fx "c"))
-    (def len (if (null? cut) (int* h ms) (%min (int* h ms) (int+ (int* ms (first cut)) (int* tick (%fx-arg cut 0))))))
+    (def len (if (null? cut) (row-at h) (%min (row-at h) (int+ (row-at (first cut)) (int* tick (%fx-arg cut 0))))))
     (def delay ((fn (_ d) (if (if (null? d) #t (not (int= 0 (first d)))) 0 (int* tick (%fx-arg d 0)))) (%fx fx "d")))
     (def every ((fn (_ r) (if (null? r) len (%max 1 (int* tick (%fx-arg r 1))))) (%fx fx "r")))
     (def last (Assoc entry ci (%get t %t-last)))
@@ -636,7 +783,7 @@
     (def echoes (%echoes (%fx fx "e")))
     (List for-each
       (fn (_ start)
-        (def shape (%shape fx (%min every (int- len start)) ms tick (List ref 2 inst) (List ref 3 inst) from))
+        (def shape (%shape fx (%min every (int- len start)) row-at tick (List ref 2 inst) (List ref 3 inst) from))
         (List for-each
           (fn (_ echo)
             (def at (int+ (int+ delay start) (first echo)))
@@ -660,7 +807,8 @@
 (def %play-row!
   (fn (_ t m row)
     (def s (%get t %t-song))
-    (def ms (%row-ms t))
+    (def p (%pattern-now t))
+    (def tick (%tick-ms t))
     (def tension (%get t %t-tension))
     (def env (if (%s-named s) (%names-now t) ()))
     (List fold
@@ -670,9 +818,9 @@
           (when (eq? (first (first cells)) (lit note))
             (do (def inst (%instrument-now (rest (Assoc entry (first ch) (%s-instruments s))) env))
                 (def w (%weight (List ref 4 inst) tension))
-                (unless (int= w 0) (%note! t m ci cells ms inst w env)))))
+                (unless (int= w 0) (%note! t m ci cells (%offsets t p row (%held (rest cells) 1)) tick inst w env)))))
         (int+ ci 1))
-      0 (%pattern-now t))))
+      0 p)))
 
 ; The song's effects put over M, each under the tracker's name for its
 ; place, made the first time; a name with no effect left in the song is
@@ -693,27 +841,36 @@
              (self (rest ns) (if (null? ss) () (rest ss))))))
      names specs)))
 
-; The tracker as a mixer source: the row due now played, the place moved
-; on, the next row's frame answered.  The song's effects are put again
+; The tracker as a mixer source: the time the row due now gives taken,
+; the row played, the place moved on, and the next row's frame answered,
+; the frame its exact time falls in.  The song's effects are put again
 ; before a row when a name they use has changed with the tempo.
 (def %source
   (fn (_ t)
     (fn (_ m now)
       (if (%get t %t-stopped) ()
-        (do (def rows (%pattern-rows (%pattern-now t)))
+        (do (def p (%pattern-now t))
+            (def rows (%pattern-rows p))
+            (def row (%get t %t-row))
+            (def time (%time-after (pair (%get t %t-rate) (%get t %t-ticks)) (%row-times p row)))
+            (%put! t %t-rate (first time))
+            (%put! t %t-ticks (rest time))
             (when (if (%s-named-effects (%get t %t-song))
                     (not (equal? (%specs-now t (%names-now t)) (%get t %t-specs))) #f)
               (%effects! t m))
-            (%play-row! t m (%get t %t-row))
-            (def ms (%row-ms t))
-            (if (int< (int+ (%get t %t-row) 1) rows)
-              (%put! t %t-row (int+ (%get t %t-row) 1))
+            (%play-row! t m row)
+            (def r (%rate t (first time)))
+            (def due (%count r (%row-ticks p row time) (Mixer rate m) (%part (%get t %t-carry) r)))
+            (%put! t %t-carry (pair (first r) (rest due)))
+            (if (int< (int+ row 1) rows)
+              (%put! t %t-row (int+ row 1))
               (do (%put! t %t-row 0)
                   (if (null? (%get t %t-next))
                     (%put! t %t-at (if (int< (int+ (%get t %t-at) 1) (List length (%s-order (%get t %t-song))))
                                      (int+ (%get t %t-at) 1) 0))
-                    (do (%put! t %t-song (%get t %t-next)) (%put! t %t-next ()) (%put! t %t-at 0) (%effects! t m)))))
-            (int+ now (int/ (int* ms (Mixer rate m)) 1000)))))))
+                    (do (%put! t %t-song (%get t %t-next)) (%put! t %t-next ()) (%put! t %t-at 0)
+                        (%time! t (%get t %t-song)) (%effects! t m)))))
+            (int+ now (first due)))))))
 
 (def-class Tracker ()
   (doc "A song of patterns, played into a mixer row by row as one of its sources: instruments described as voices, patterns as rows of notes, an order to play them in, and a tension that speeds the tempo and brings one layer of instruments in as another goes."
@@ -792,7 +949,7 @@
       (pair (%get t %t-at) (%get t %t-row)))
 
     (method row-ms (self (param t VECTOR "A tracker"))
-      (doc "A row's length at the tension now."
+      (doc "A row's length at the time and the tension now, a hold not counted, to the ms below."
         (returns INTEGER "Milliseconds")
         (example "(Tracker row-ms (Tracker make (lit (song \"hum\" (bpm 60) (rows 4) (instrument a) (pattern p (a \"A3\")) (order p)))))" "250"))
       (%row-ms t))
