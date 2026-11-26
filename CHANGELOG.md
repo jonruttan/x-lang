@@ -5,6 +5,40 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-11-25
+
+**A base that loads `x/tui/width` can be imaged on x86-64 Linux again.**
+([#1496]) 0.63.0's `Width text` kept a pointer to the C library's
+`strspn` from the moment the module loaded; under glibc on x86-64 that
+is an address a state image cannot name, so the image was refused and a
+bundle that imports the module (x-sql does) booted from source on every
+run there. The pointer is now resolved on first use and dropped before
+an image is written.
+
+**A cell's `/eMS,P,N` echoes the note.** ([#1495]) x/audio/tracker plays
+the note again MS ms later at P percent (50), N times (1), each at P
+percent of the one before; `C4/e340,100` is one repeat at the note's
+own level.  Only that cell's note echoes, unlike a song's `(echo ...)`
+over the whole mix.
+
+**`List group-by` puts elements whose keys are `equal?` in one group.**
+([#1494]) A key that is a string or a list now gathers its elements; it
+made a group for each one.
+
+Html parse is about 1.4 times as fast, with 40% fewer objects made. ([#1493])
+
+**`Table join` pairs the rows of two tables by a column they share.**
+([#1492]) `(a join b 'city)` keeps the rows with a partner, `'left`
+after the name keeps every row of `a`, and `'full` every row of both,
+with missing values where a row has no partner. A list of names matches
+by several columns.
+
+[#1492]: https://github.com/jonruttan/x-lang/pull/1492
+[#1493]: https://github.com/jonruttan/x-lang/pull/1493
+[#1494]: https://github.com/jonruttan/x-lang/pull/1494
+[#1495]: https://github.com/jonruttan/x-lang/pull/1495
+[#1496]: https://github.com/jonruttan/x-lang/pull/1496
+
 ## [0.63.0] - 2026-11-25
 
 **`x/gfx` moves out to the `gfx` library.** ([#1474], [#1468]) Breaking.
