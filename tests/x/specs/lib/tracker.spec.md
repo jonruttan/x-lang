@@ -309,3 +309,23 @@ reached and what is sounding.
 ```
 ---
     ((#f #f #f #t) (#t #t #t #f #f #f #f #f) 1 5)
+
+### an echo plays the note again later, quieter, as many times as it says
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer)
+  (def song (fn (_ cells) (list (lit song) "s" (lit (bpm 60)) (lit (rows 4)) (lit (ticks 4))
+                                (lit (instrument a (wave sine) (env (0 100) (10 100)) (release 10)))
+                                (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p)))))
+  (def started
+    (fn (_ cells)
+      (def m (Mixer make 8000 256))
+      (Tracker play! (Tracker make (song cells)) m)
+      (Mixer block! m)
+      (Mixer playing m)))
+  (def %echo-raised (fn (_ cells) (guard (e #t) (do (Tracker make (song cells)) #f))))
+  (list (started "C4") (started "C4/e340,100") (started "C4/e100") (started "C4/e100,50,3") (started "C4/e100,0,3")
+        (started "C4/e100,50,0") (%echo-raised "C4/e100,x")))
+```
+---
+    (1 2 2 4 1 1 #t)
