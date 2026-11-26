@@ -151,6 +151,97 @@ reached and what is sounding.
 ---
     ((('echo 30 40 20) ('phase 1 3 500 40 50) ('drive 200 50)) "two" (('reverb 100 70 30) ('limit 90 100)))
 
+## names
+
+### a song's own names follow its tempo, tension and pace, and its lets are worked out from them in order
+
+```x
+(do (import x/audio/tracker)
+  (def t (Tracker make (lit (song "s" (bpm 60) (rows 4) (ticks 5) (tension-bpm 60)
+                                  (let gap (* 2 row)) (let half (/ gap 2)) (let most (max 10 (- beat 900) 3)) (let low (min 7 -2))
+                                  (instrument a) (pattern p (a "A3")) (order p)))))
+  (def calm (List map rest (Tracker names t)))
+  (Tracker tension! t 100)
+  (def tense (List map rest (Tracker names t)))
+  (Tracker pace! t 50)
+  (list (List map first (Tracker names t)) calm tense (List map rest (Tracker names t))))
+```
+---
+    (('bpm 'rows 'ticks 'row 'beat 'tick 'gap 'half 'most 'low) (60 4 5 250 1000 50 500 250 100 -2) (120 4 5 125 500 25 250 125 10 -2) (60 4 5 250 1000 50 500 250 100 -2))
+
+### a let of the names before it is kept; one that is not (let NAME EXPR), names a name twice or one of the song's own, or uses a name not yet defined, raises
+
+```x
+(do (import x/audio/tracker)
+  (def %let-raised (fn (_ lets) (guard (e #t) (do (Tracker make (List append (list (lit song) "s") lets (lit ((instrument a) (pattern p (a "A3")) (order p))))) #f))))
+  (list (%let-raised (lit ((let a 1) (let b (+ a row)))))
+        (%let-raised (lit ((let a))))
+        (%let-raised (lit ((let a 1) (let a 2))))
+        (%let-raised (lit ((let row 3))))
+        (%let-raised (lit ((let b (+ a 1)) (let a 1))))
+        (%let-raised (lit ((let a sine))))
+        (%let-raised (lit ((echo (* 2 gap) 40 20))))
+        (%let-raised (lit ((instrument b (gain (+ 10 nowhere))))))))
+```
+---
+    (#f #t #t #t #t #t #t #t)
+
+### an instrument's props take names and sums, worked out as each note starts with the tempo then; its words are never names
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer) (import x/core/doors ptr-ref str->ptr)
+  (def song (fn (_ at) (list (lit song) "s" (lit (bpm 60)) (lit (rows 4)) (lit (ticks 4)) (lit (tension-bpm 60)) (lit (let sine 2))
+                             (list (lit instrument) (lit a) (lit (wave sine)) (lit (env (0 100) ((* 4 sine) 100))) (lit (release 10)) (list (lit at) at))
+                             (lit (pattern p (a "C4 . . ."))) (lit (order p)))))
+  (def loud (fn (_ r) ((fn (self i acc) (if (< i 512) (self (+ i 2) (+ acc (if (= 0 (+ (ptr-ref (str->ptr r) i 1) (ptr-ref (str->ptr r) (+ i 1) 1))) 0 1))) acc)) 0 0)))
+  (def heard
+    (fn (_ at tension)
+      (def m (Mixer make 8000 256))
+      (def t (Tracker make (song at)))
+      (Tracker tension! t tension)
+      (Tracker play! t m)
+      ((fn (self k acc) (if (< k 5) (self (+ k 1) (pair (< 0 (loud (Mixer block! m))) acc)) (List reverse acc))) 0 ())))
+  (list (heard 125 0) (heard (lit (* 2 tick)) 0) (heard (lit (* 2 tick)) 100)))
+```
+---
+    ((#f #f #f #f #t) (#f #f #f #f #t) (#f #f #t #t #t))
+
+### a cell's effect takes a name for a number, worked out as the note starts
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer)
+  (def started
+    (fn (_ cells)
+      (def m (Mixer make 8000 256))
+      (Tracker play! (Tracker make (list (lit song) "s" (lit (bpm 60)) (lit (rows 4)) (lit (let gap (* 4 tick))) (lit (let three 3))
+                                         (lit (instrument a (wave sine) (env (0 100) (10 100)) (release 10)))
+                                         (list (lit pattern) (lit p) (list (lit a) cells)) (lit (order p))))
+                     m)
+      (Mixer block! m)
+      (Mixer playing m)))
+  (list (started "C4/egap,50,3") (started "C4/e100,50,three") (started "C4/egap,50,0")))
+```
+---
+    (4 4 1)
+
+### a song effect that uses a name is put again when the tempo changes it, and left as it is when the tempo does not
+
+```x
+(do (import x/audio/tracker) (import x/audio/mixer)
+  (def m (Mixer make 8000 256))
+  (def t (Tracker make (lit (song "s" (bpm 60) (rows 4) (tension-bpm 60) (echo (* 2 row) 40 20) (reverb 100 70 30)
+                                  (instrument a) (pattern p (a "A3 . . .")) (order p)))))
+  (Tracker play! t m)
+  (def blocks (fn (self n) (when (< 0 n) (do (Mixer block! m) (self (- n 1))))))
+  (blocks 10)
+  (def calm (List map rest (Mixer effects m)))
+  (Tracker tension! t 100)
+  (blocks 10)
+  (list calm (List map rest (Mixer effects m))))
+```
+---
+    ((('echo 500 40 20) ('reverb 100 70 30)) (('echo 250 40 20) ('reverb 100 70 30)))
+
 ## a cell's effects
 
 ### a cell's effect that is no letter, or a number that is none, raises
