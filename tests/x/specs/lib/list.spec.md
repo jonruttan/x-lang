@@ -812,6 +812,15 @@ landed in which group, or in what order the groups come back.
 ---
     ((#f 1 3 5) (#t 2 4))
 
+### keys that are equal? share a group: strings and lists
+
+```x
+(list (List group-by (fn (_ s) (Str8 upcase s)) (list "a" "A" "b"))
+      (List group-by (fn (_ x) (list (% x 2))) (list 1 2 3)))
+```
+---
+    ((("A" "a" "A") ("B" "b")) (((1) 1 3) ((0) 2)))
+
 ## sort
 
 ### sorts ascending

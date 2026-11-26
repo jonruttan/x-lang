@@ -155,7 +155,8 @@ this tree.
   it. `architecture.md` names four.
 - **group** — a capability group: a set of instructions an engine offers
   together, declared in `features.x`. The groups partition the ISA.
-  Nothing else is called a group.
+  No other part of the platform is called a group. `List group-by` and a
+  regex's capture groups are the library's ordinary uses of the word.
 - **profile** — a named set of capability groups an engine can aim at:
   `core`, `gc`, `posix`, `full`, each including the one before it.
 - **mode** — a configuration the program runs in: batch or interactive,
@@ -222,7 +223,7 @@ this tree.
   associative wire format. Pairing producers (`List zip`, `Gen zip`,
   `Gen enumerate`, `List group-by`, `Dict ->alist`) emit alists; keyed
   consumers (`Assoc`, `Dict from-alist`) take them. Keys compare with
-  `eq?`.
+  `eq?`; `List group-by` gathers its keys by `equal?`.
 - **plist** — the flat `(k v k v ...)` form, legal only in option stores.
 - **option store** — an argument accepting an alist or a plist, walked by
   `%opt-cell`: `let-opts`, `Assoc get-or`/`opt-get-or`/`opt-get-or-else`,
