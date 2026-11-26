@@ -3,18 +3,22 @@
 *x-lang: computational expressions over a minimal, type-agnostic engine.*
 
 
-A dialect is a composition of x-lang library modules that determines what capabilities are loaded. The dialects are named after noble gases — the theme ties to the x-expr/Xe etymology, and read correctly it is self-teaching along the two axes that actually distinguish the entries:
+A dialect is a composition of x-lang library modules that determines what is loaded when a session starts. The dialects are named after noble gases, the theme tying to the x-expr/Xe etymology. Each is for something different; they are not one language at four sizes.
 
-- **Atomic weight = library weight.** Helium is light: fast boot, no numeric tower. Xenon and radon are heavy: the full tower, regular expressions, the compiler.
-- **Radioactivity = instability.** Xenon is inert: the stable full-stack surface. Radon is radioactive: xenon's surface plus experimental, raw, volatile APIs.
+- **Helium** is the minimal base: the core libraries, and nothing a program did not ask for. It is the default.
+- **Neon** is built on helium and is the base for a language built on x-lang: it adds the compiler and the Lexer, which such a language stands on, and nothing that language might not want.
+- **Xenon** is built on neon and is x-lang's own full language: the numeric tower, regular expressions, the containers, and the literals that write them. It grows as x-lang does.
+- **Radon** is built on neon as xenon is. It is where changes that would break xenon are to land once xenon is declared stable. Today it also defines a few names that xenon does not, listed below.
+
+**A missing function is an import, not a heavier dialect.** A helium program that needs rationals imports `x/num/tower`; one that needs a `Dict` imports `x/type/dict`. A bundle declares neon and imports the libraries its language uses. Declaring xenon to get one library ties the program to everything xenon is and becomes.
 
 | Name | Element | Is |
 |------|---------|----|
 | — | — | the engine binary: no libraries, substrate rather than a dialect |
-| `he` | helium | light, fast boot, interactive; no tower — the **default** |
+| `he` | helium | the minimal base: the core libraries; no tower — the **default** |
 | `ne` | neon | helium plus the compiler and the Lexer, and no syntax beyond helium's; the base for a language built on x-lang |
-| `xe` | xenon | full numeric tower, regular expressions, `Dict` and `Set`, compiler; stable |
-| `rn` | radon | xenon's surface plus experimental/raw APIs; explicitly volatile |
+| `xe` | xenon | neon plus the full numeric tower, regular expressions, `Set`, and their literals; x-lang's own language |
+| `rn` | radon | built on neon as xenon is, with the same additions; also a few names of its own that are not promised |
 
 **The rule dialects follow: they may differ in what surface is *loaded*; they must never differ in what a shared spelling *means*.** A `+` that means pointer arithmetic in one dialect, or a `+` that coerces `"123"` to a number, is not a dialect — it is a different language wearing the same clothes (that would be a *lang*, below). If radon ever grows ergonomic address math, it gets a distinct spelling (the `Ptr` class), not an overload.
 
@@ -33,13 +37,13 @@ include chain flattened to a single stream) — and
 the library under `share/x/lib/` is byte-identical to the repo's. Repo
 checkouts always load the live entries above.
 
-`lib/x.x` is a pointer, not a dialect: it is what a bare `sh x.sh` boots, and it points at helium. The default is the light one because xenon's boot loads the compiler and the numeric tower and compiles the reader's analysers, which a session that needs none of them should not pay for. An unknown `-l` name fails with the wrapper's inventory listing, which names the real entries.
+`lib/x.x` is a pointer, not a dialect: it is what a bare `sh x.sh` boots, and it points at helium. The default is the minimal one because xenon's boot loads the compiler and the numeric tower and compiles the reader's analysers, which a session that needs none of them should not pay for. An unknown `-l` name fails with the wrapper's inventory listing, which names the real entries.
 
 ---
 
 ### helium (`lib/he.x`)
 
-The light dialect. Loads `lib/x-core.x`, which bootstraps the module system and loads 40+ modules:
+The minimal base. Loads `lib/x-core.x`, which bootstraps the module system and loads 40+ modules:
 
 - **Boot:** operatives, data constructors, string primitives, module system (`provide`/`import`)
 - **Core:** predicates, control flow, GC, type system, conversions, booleans, higher-order functions, logic, list operations (60+ functions), math, syntax forms (`cond`, `case`, `when`, `unless`, `letrec`), association lists, arithmetic, quasiquote, REPL, banner
@@ -88,24 +92,22 @@ Each tower module is a library: importing one installs no reader syntax. The lit
 
 The analyser compilation pattern is the key design choice: each numeric type's tokenizer analyser is compiled to native code right after the type loads, so subsequent source files (including later numeric types) are parsed through fast compiled analysers rather than interpreted ones.
 
-Xenon does NOT include raw syscall access, file I/O, or socket constants.
+Xenon does not load file I/O (`x/sys/file`) or the socket constants (`x/platform/socket`); each is an import.
 
 ---
 
 ### radon (`lib/rn.x`)
 
-Experimental/hacking dialect. Everything in xenon, plus:
+Built on neon with everything xenon adds. Radon is where changes that would break xenon are to land once xenon is declared stable. Today it also defines, in `lib/x/rn.x`:
 
-- **Syscall tables** (`x/platform/syscall.x`) — Symbolic syscall number lookup for x86_64 and i386/BSD (loaded via the POSIX layer)
-- **File I/O** (`x/sys/file.x`) — File operations via POSIX syscalls with symbolic mode flags. **Opt-in** (#36): `(import x/sys/file)`
-- **Socket constants** (`x/platform/socket.x`) — Linux socketcall, protocol families, socket types. **Opt-in** (#36): `(import x/platform/socket)`
 - **Character constants** — `#newline`/`#nl`, `#cr`, `#esc`, `#0`, `#crnl`
 - **I/O constants** — `stdin` (0), `stdout` (1), `stderr` (2), `current-input-handle`, `current-output-handle`, `current-error-handle`
 - **Car/cdr compositions** — 28 composed accessors from `caar` through `cddddr`
-- **`system`** — Execute a shell command via fork/execve
+- **`list-ref`** and **`list-tail`** — list accessors that take the list first
+- **`system`** — Runs a shell command through `Proc run!` and answers its status
 - **`do-loop`** — Scheme-style iteration form
 
-Radon is the right choice for systems programming, kernel hacking, or any task that needs direct access to the operating system. It is chemically honest: heavy AND radioactive — full-featured and explicitly unstable. APIs here may change or vanish between releases.
+None of these additions is promised: they may change or be removed in any release. The syscall table (`x/platform/syscall`) is loaded in every dialect, through the POSIX layer. File I/O (`x/sys/file`) and the socket constants (`x/platform/socket`) are an import in radon as in any other dialect.
 
 ---
 
