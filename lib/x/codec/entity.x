@@ -15,20 +15,24 @@
 (import x/codec/utf8 utf8-encode)
 
 (import x/protocol/str/str8 str-find-byte)
-(import x/core/doors char->int int+ int< str-byte-len str-byte-ref str-byte-sub)
+(import x/core/doors char->int int* int+ int- int< int= str-byte-len str-byte-ref str-byte-sub)
 
 ; The byte at I of S as an integer, -1 past either end.
 (def %en-at
   (fn (_ s i)
     (match ((int< i 0) -1) ((int< i (str-byte-len s)) (char->int (str-byte-ref s i))) (#t -1))))
-(def %en-sub (fn (_ s i j) (str-byte-sub s i (- j i))))
+(def %en-sub (fn (_ s i j) (str-byte-sub s i (int- j i))))
 (def %en-digit? (fn (_ c) (match ((int< c #\0) #f) ((int< #\9 c) #f) (#t #t))))
 (def %en-alnum?
   (fn (_ c)
     (match ((int< c #\0) #f) ((int< c #\:) #t) ((int< c #\A) #f) ((int< #\z c) #f)
            ((int< c #\[) #t) ((int< c #\a) #f) (#t #t))))
+; A name is compared a first byte before the whole.
 (def %en-assoc
-  (fn (self k al) (match ((eq? al ()) ()) ((str=? k (first (first al))) (first al)) (#t (self k (rest al))))))
+  (fn (self k al)
+    (match ((eq? al ()) ())
+           ((match ((int= (str-byte-ref k 0) (str-byte-ref (first (first al)) 0)) (str=? k (first (first al)))) (#t #f)) (first al))
+           (#t (self k (rest al))))))
 
 ; HTML 4's named references, and apos: Latin-1, symbols and Greek, and the
 ; special characters.
@@ -99,39 +103,39 @@
 
 (def %en-char
   (fn (_ cp)
-    (bytes->str (utf8-encode (if (if (= cp 0) #t (if (< 55295 cp) (< cp 57344) #f)) 65533 cp)))))
+    (bytes->str (utf8-encode (match ((int= cp 0) 65533) ((match ((int< 55295 cp) (int< cp 57344)) (#t #f)) 65533) (#t cp))))))
 ; The digits of a numeric reference from J of S, at most MORE in RADIX, then ;:
 ; (TEXT . END), or nil.
 (def %en-numeric
   (fn (self s j k v radix more)
     (def c (%en-at s k))
-    (def d (match ((%en-digit? c) (- c #\0))
-                  ((= radix 10) -1)
-                  ((if (int< c #\a) #f (int< c #\g)) (+ 10 (- c #\a)))
-                  ((if (int< c #\A) #f (int< c #\G)) (+ 10 (- c #\A)))
+    (def d (match ((%en-digit? c) (int- c #\0))
+                  ((int= radix 10) -1)
+                  ((match ((int< c #\a) #f) (#t (int< c #\g))) (int+ 10 (int- c #\a)))
+                  ((match ((int< c #\A) #f) (#t (int< c #\G))) (int+ 10 (int- c #\A)))
                   (#t -1)))
     (match
-      ((< -1 d) (if (< (- k j) more) (self s j (+ k 1) (+ (* v radix) d) radix more) ()))
-      ((if (= c #\;) (< j k) #f) (pair (%en-char (if (< 1114111 v) 65533 v)) (+ k 1)))
+      ((int< -1 d) (match ((int< (int- k j) more) (self s j (int+ k 1) (int+ (int* v radix) d) radix more)) (#t ())))
+      ((match ((int= c #\;) (int< j k)) (#t #f)) (pair (%en-char (match ((int< 1114111 v) 65533) (#t v))) (int+ k 1)))
       (#t ()))))
 (def entity-at
   (fn (_ s i)
     (match
-      ((not (= (%en-at s i) #\&)) ())
-      ((= (%en-at s (+ i 1)) #\#)
-        ((fn (_ c) (if (if (= c #\x) #t (= c #\X))
-                     (%en-numeric s (+ i 3) (+ i 3) 0 16 6)
-                     (%en-numeric s (+ i 2) (+ i 2) 0 10 7)))
-         (%en-at s (+ i 2))))
+      ((not (int= (%en-at s i) #\&)) ())
+      ((int= (%en-at s (int+ i 1)) #\#)
+        ((fn (_ c) (match ((match ((int= c #\x) #t) (#t (int= c #\X)))
+                            (%en-numeric s (int+ i 3) (int+ i 3) 0 16 6))
+                          (#t (%en-numeric s (int+ i 2) (int+ i 2) 0 10 7))))
+         (%en-at s (int+ i 2))))
       (#t
         ((fn (go j)
            (match
              ((%en-alnum? (%en-at s j)) (go (int+ j 1)))
-             ((if (= (%en-at s j) #\;) (< (+ i 1) j) #f)
-               ((fn (_ hit) (if (null? hit) () (pair (%en-char (rest hit)) (+ j 1))))
-                (%en-assoc (%en-sub s (+ i 1) j) %en-names)))
+             ((match ((int= (%en-at s j) #\;) (int< (int+ i 1) j)) (#t #f))
+               ((fn (_ hit) (match ((null? hit) ()) (#t (pair (%en-char (rest hit)) (int+ j 1)))))
+                (%en-assoc (%en-sub s (int+ i 1) j) %en-names)))
              (#t ())))
-         (+ i 1))))))
+         (int+ i 1))))))
 ; S, N bytes long, decoded from byte I, the text from FROM not yet taken:
 ; strchr finds each & in one call, so a span with none is not walked.
 (def %en-amp (char->int #\&))
@@ -139,7 +143,7 @@
   (fn (self s n i from out)
     (def k (match ((int< i n) (str-find-byte s %en-amp i)) (#t ())))
     (match
-      ((eq? k ()) (match ((= from 0) s) (#t (%str-concat (%reverse (pair (%en-sub s from n) out))))))
+      ((eq? k ()) (match ((int= from 0) s) (#t (%str-concat (%reverse (pair (%en-sub s from n) out))))))
       (#t ((fn (_ e)
              (match ((eq? e ()) (self s n (int+ k 1) from out))
                     (#t (self s n (rest e) (rest e) (pair (first e) (pair (%en-sub s from k) out))))))
