@@ -119,7 +119,7 @@ reached and what is sounding.
 ---
     ((0 . 1) (0 . 2) (1 . 0) (0 . 0))
 
-### rows start at the frame their exact time falls in, so a minute of rows a third of a second long ends on the minute
+### rows start at the frame their exact time falls in, so three rows a third of a second long end on the second
 
 ```x
 (do (import x/audio/tracker) (import x/audio/mixer)
@@ -127,10 +127,10 @@ reached and what is sounding.
   (def t (Tracker make (lit (song "s" (tick-rate 3) (ticks 1) (instrument a) (pattern p (a "- - -")) (pattern q (a "- - -")) (order p q)))))
   (Tracker play! t m)
   (def after (fn (self n) (if (< 0 n) (do (Mixer block! m) (self (- n 1))) (Tracker place t))))
-  (list (after 240) (after 1)))
+  (list (after 4) (after 1)))
 ```
 ---
-    ((0 . 0) (0 . 1))
+    ((1 . 0) (1 . 1))
 
 ### a k sets the ticks a row and an m the tick rate, from their row on, whichever channel they are in
 
