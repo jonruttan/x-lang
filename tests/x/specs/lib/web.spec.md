@@ -144,6 +144,35 @@ on port 0 and reads the port back with local-port.
 ---
     (130 126 64 1)
 
+### a page gets the whole frame first, then only the rows that changed, and nothing for a frame the same
+
+```x
+(do (import x/sys/web) (import x/sys/socket) (import x/core/doors ptr-set! str->ptr)
+  (Web listen! "127.0.0.1" 0)
+  (def r-win (Web open "t" 4 3 1))
+  (def r-port (Socket local-port (Web %ref r-win (lit listener))))
+  (def r-c (Socket tcp-connect "127.0.0.1" r-port))
+  (Socket send r-c (Str8 append "GET /socket HTTP/1.1\r\nUpgrade: websocket\r\n"
+                              "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"))
+  (Web poll)
+  (Socket recv r-c 4096)
+  (def r-buf (Web canvas r-win))
+  (Web show! r-win r-buf)
+  (ptr-set! (str->ptr r-buf) 17 200 1)
+  (Web show! r-win r-buf)
+  (Web show! r-win r-buf)
+  (Web %tell! r-win "ping")
+  ; the whole frame is 2 + 1 + 48 bytes, the row 2 + 9 + 16, the text 2 + 4
+  (def r-got (let more ((got ())) (if (>= (List length got) 84) got (more (List append got (Socket recv-bytes r-c 128))))))
+  (Web close r-win)
+  (Socket close r-c)
+  (list (List take 3 r-got)
+        (List take 27 (List drop 51 r-got))
+        (List drop 78 r-got)))
+```
+---
+    ((130 49 70) (130 25 82 0 0 0 1 0 0 0 1 0 200 0 0 0 0 0 0 0 0 0 0 0 0 0 0) (129 4 112 105 110 103))
+
 ### a page that goes away is waited for again, and poll answers nil
 
 ```x
