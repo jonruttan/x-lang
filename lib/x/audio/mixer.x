@@ -6,8 +6,9 @@
 ; and, when it has one, a resonant filter, and placed left or right.  A sound is a list of voices.  A mixer renders
 ; the voices playing a block at a time into a buffer of frames, with its
 ; effects over the mix (echoes, a reverb, a phaser, a chorus, a drive, a
-; crush, a swept filter, a limiter), and at each block's boundary and at
-; any frame a source asks for, it hands the time to its sources (a
+; crush, a swept filter, a limiter, a convolution), and at each block's
+; boundary and at any frame a source asks for, it hands the time to its
+; sources (a
 ; tracker, a pulse) which start the voices due then.  A mixer's pitch and
 ; cut move every voice in it, and its effects can be named, changed and
 ; taken off while it plays.
@@ -496,9 +497,10 @@
 ; ((K . WAVE) ...).  Tables are shared by every mixer.
 ;
 ; A sample is the same record, its SHIFT, HARMONIC and COUNT nil, nil and
-; 0, and a seventh entry, (END BACK RATE ROOT): the frame its reads end
-; at, the frames a loop goes back (0 for none), its frames a second, and
-; the pitch it sounds at that rate in thousandths of a hertz.  Its table
+; 0, and a seventh entry, (END BACK RATE ROOT FRAMES): the frame its reads
+; end at, the frames a loop goes back (0 for none), its frames a second,
+; the pitch it sounds at that rate in thousandths of a hertz, and all its
+; frames, loop or not.  Its table
 ; is its frames, then two zero words.  A wave's seventh entry is nil.
 
 (def %cycle-bits 11)
@@ -699,7 +701,8 @@
 
 ; The sample of FRAMES frames in PCM, RATE frames a second, sounding at
 ; pitch ROOT, LOOP () or (START END): the frames from START up to END
-; repeat.
+; repeat.  Its info is the frame it ends at, the loop's length (0 for
+; none), RATE, ROOT in thousandths of a hertz and FRAMES.
 (def %sample-wave
   (fn (_ pcm frames rate root loop)
     (def bad (fn (_ what) (%fail (Str8 append "sample: " what))))
@@ -714,8 +717,8 @@
     (def r (%pcm-words pcm frames 2))
     (list r (%addr r) () () 0 (pair () ())
           (if (null? loop)
-            (list frames 0 rate mhz)
-            (list (first (rest loop)) (int- (first (rest loop)) (first loop)) rate mhz)))))
+            (list frames 0 rate mhz frames)
+            (list (first (rest loop)) (int- (first (rest loop)) (first loop)) rate mhz frames)))))
 
 ; The step a frame, in 65536ths of a frame, for sample info SMP played at
 ; MHZ thousandths of a hertz, RATE frames a second.
@@ -1220,6 +1223,8 @@
 ;            cents it sweeps up, the sweep's period in frames and the
 ;            frame it has reached; damping
 ;   limit    gain in 65536ths, ceiling, release
+;   convolve the left channel's convolver, the right's (its twin), and
+;            the gain the convolved block is added at
 ;
 ; Gains are of 256.
 
@@ -1305,18 +1310,61 @@
     (%put! s 1 65536) (%put! s 2 ceil) (%put! s 3 rel)
     s))
 
+; The sum of the squares of the N words at A, each -32768 to 32767, as
+; (HIGH . LOW), the sum HIGH 2^28 + LOW: LOW carried at 2^28 stays under
+; 2^31 with a square added, so a 4-byte word holds it.
+(def %squares
+  (fn (_ a n)
+    ((fn (self i hi lo)
+       (if (int< i n)
+         ((fn (_ s) (self (int+ i 1) (int+ hi (int>> s 28)) (int& s 268435455)))
+          (int+ lo (int* (%wref a i) (%wref a i))))
+         (pair hi lo)))
+     0 0 0)))
+
+; A convolve stage: the first MS of the sample NAME as an impulse, both
+; channels convolved with it a block of BLOCK frames at a time and added
+; at WET percent of the impulse's energy, so a lone click of any level
+; gives back the dry sound at WET.  The impulse is the sample's frames as
+; they are, one a frame at any rate.  x/num/frequency is imported and its
+; kernels compiled here, when the first is made, as make does the mixer's.
+(def %convolve-stage
+  (fn (_ name wet ms rate block)
+    (import x/num/frequency)
+    (import x/num/float float-of)
+    (def bad (fn (_ what) (%fail (Str8 append "convolve: " what))))
+    (def smp (List ref 6 (%wave name)))
+    (when (null? smp) (bad "the wave is not a sample"))
+    (unless (int= block (%pow2 block 1)) (bad "the mixer's block is not a power of two"))
+    (def a (List ref 1 (%wave name)))
+    (def frames (%clamp 1 (List ref 4 smp) (%ms ms rate)))
+    (def sums (%squares a frames))
+    (when (if (int= (first sums) 0) (int= (rest sums) 0) #f) (bad "the sample is silent"))
+    (def energy (Float + (Float * (float-of (first sums)) (float-of (int<< 1 28))) (float-of (rest sums))))
+    (Frequency jit!)
+    (def c (Frequency convolver a frames block))
+    (def s (%rec 4))
+    (%put! s %s-kind (lit convolve))
+    (%put! s 1 c) (%put! s 2 (c twin))
+    (%put! s 3 (Float / (float-of (%clamp 0 100 wet)) (Float * (float-of 100) (Float sqrt energy))))
+    s))
+
 ; The combs of a reverb in tenths of a millisecond at a size of 100, and
 ; its all-passes': lengths with no common factor, so their repeats never
 ; line up.
 (def %combs (list 297 371 411 437))
 (def %allpasses (list 50 17))
 
-; The stages for SPEC at RATE: (echo MS FB WET), (reverb SIZE DECAY WET),
-; (phase LEAST-MS MOST-MS PERIOD-MS FB WET), (chorus VOICES MS DEPTH-MS
-; PERIOD-MS WET), (drive GAIN WET), (crush BITS HZ), (sweep LOW-HZ HIGH-HZ
-; PERIOD-MS RES) or (limit CEILING RELEASE-MS).
+; The impulse a convolve takes when its spec gives no length.
+(def %convolve-ms 2000)
+
+; The stages for SPEC at RATE in blocks of BLOCK frames: (echo MS FB WET),
+; (reverb SIZE DECAY WET), (phase LEAST-MS MOST-MS PERIOD-MS FB WET),
+; (chorus VOICES MS DEPTH-MS PERIOD-MS WET), (drive GAIN WET), (crush BITS
+; HZ), (sweep LOW-HZ HIGH-HZ PERIOD-MS RES), (limit CEILING RELEASE-MS) or
+; (convolve WAVE WET [MS]).
 (def %stages
-  (fn (_ spec rate)
+  (fn (_ spec rate block)
     (def arg (fn (_ i) (List ref (int+ i 1) spec)))
     (def tenths (fn (_ t) (fixed*/ t rate 10000)))
     (def delay (fn (_ ms) (%clamp 65536 1073741824 (int* 65536 (%ms ms rate)))))
@@ -1358,6 +1406,8 @@
       ((eq? (first spec) (lit limit))
         (list (%limit-stage (int/ (int* 32767 (%clamp 1 100 (arg 0))) 100)
                             (int/ 65536 (%clamp 1 1073741824 (%ms (arg 1) rate))))))
+      ((eq? (first spec) (lit convolve))
+        (list (%convolve-stage (arg 0) (arg 1) (if (int< (List length spec) 4) %convolve-ms (arg 2)) rate block)))
       (#t (%fail (Str8 append "effect: no effect named " (symbol->str (first spec))))))))
 
 ; STAGES with each line the same length as OLD's at the same place taken
@@ -1370,7 +1420,7 @@
           (def o (if (null? old) () (first old)))
           (when (if (null? o) #f
                   (if (eq? (%get o %s-kind) (%get s %s-kind))
-                    (if (List includes? (%get s %s-kind) (lit (add limit))) #f (int= (%get o %s-len) (%get s %s-len)))
+                    (if (List includes? (%get s %s-kind) (lit (add limit convolve))) #f (int= (%get o %s-len) (%get s %s-len)))
                     #f))
             (do (%put! s %s-line (%get o %s-line)) (%put! s %s-addr (%get o %s-addr)) (%put! s %s-place (%get o %s-place))
                 (when (List includes? (%get s %s-kind) (lit (phase sweep))) (%put! s 8 (%get o 8)))))
@@ -1390,8 +1440,8 @@
     (match
       ((null? spec) (%put! m %m-effects (List filter (fn (_ e) (not (same? (%get e %e-name) name))) (%get m %m-effects))))
       ((null? old) (%put! m %m-effects (List append (%get m %m-effects)
-                                         (list (%effect-make name spec (%stages spec (%get m %m-rate)))))))
-      (#t (do (def stages (%stages spec (%get m %m-rate)))
+                                         (list (%effect-make name spec (%stages spec (%get m %m-rate) (%get m %m-block)))))))
+      (#t (do (def stages (%stages spec (%get m %m-rate) (%get m %m-block)))
               (when (eq? (first spec) (first (%get old %e-spec))) (%keep-lines stages (%get old %e-stages)))
               (%put! old %e-spec spec)
               (%put! old %e-stages stages))))
@@ -1400,7 +1450,7 @@
 (def %echo!
   (fn (_ m ms fb wet)
     (def spec (list (lit echo) ms fb wet))
-    (%put! m %m-effects (List append (%get m %m-effects) (list (%effect-make () spec (%stages spec (%get m %m-rate))))))
+    (%put! m %m-effects (List append (%get m %m-effects) (list (%effect-make () spec (%stages spec (%get m %m-rate) (%get m %m-block))))))
     m))
 
 ; A phase stage's delay at frame T of its sweep, a triangle from its least
@@ -1456,6 +1506,9 @@
             (def f (%sweep-f s t))
             (%k-sweep acc line 0 b f (int/ (int- (%sweep-f s (int+ t b)) f) b) (%get s 9))
             (%put! s 8 (%turn s t b))))
+      ((eq? kind (lit convolve))
+        (do ((%get s 1) convolve! acc 2 0 (%get s 3))
+            ((%get s 2) convolve! acc 2 1 (%get s 3))))
       (#t (%put! s 1 (%k-limit acc 0 b (%get s 1) (%get s 2) (%get s 3)))))))
 
 ; Frames A to B of the block: every voice, then the voices that have ended
@@ -1564,8 +1617,8 @@
 
     (method effect! (self (param m VECTOR "A mixer")
                           (param name ANY "The effect's name: a symbol, or any object kept to name it, told apart by identity (same?)")
-                          (param spec LIST "(echo MS FB WET), (reverb SIZE DECAY WET), (phase LEAST-MS MOST-MS PERIOD-MS FB WET), (chorus VOICES MS DEPTH-MS PERIOD-MS WET), (drive GAIN WET), (crush BITS HZ), (sweep LOW-HZ HIGH-HZ PERIOD-MS RES) or (limit CEILING RELEASE-MS); nil to take it off"))
-      (doc "Put an effect over everything the mixer renders, by name: a new name runs after the effects already there, a name already there is changed in its place, and nil takes it off. An echo is the mix delayed by MS, FB percent fed back and WET percent added, each repeat duller. A reverb is a room: four combs at SIZE percent of a middling room's lengths, DECAY percent fed back (up to 98), through two all-passes, WET percent added. A phase sweeps a short delay from LEAST-MS to MOST-MS and back every PERIOD-MS, FB percent fed back and WET percent added, each -95 to 95 and -100 to 100: a phaser at a millisecond or two, a flanger at more. A chorus is VOICES (1 to 4) copies of the mix, each delayed MS swept DEPTH-MS either way every PERIOD-MS, a share of the period apart, WET percent added. A drive takes the mix up GAIN percent and rounds it off, a quiet sound as it was and a loud one saturated, WET percent of the change kept. A crush keeps BITS of each sample's 16 and holds it HZ times a second, 0 for every frame. A sweep is a resonant low-pass swept from LOW-HZ up to HIGH-HZ and back every PERIOD-MS, RES 0 to 100 its resonance: an auto-wah. A limit holds the mix under CEILING percent of full scale, taking its gain down at once and back over RELEASE-MS. A change that keeps an effect's kind and its lines' lengths keeps what is ringing in them."
+                          (param spec LIST "(echo MS FB WET), (reverb SIZE DECAY WET), (phase LEAST-MS MOST-MS PERIOD-MS FB WET), (chorus VOICES MS DEPTH-MS PERIOD-MS WET), (drive GAIN WET), (crush BITS HZ), (sweep LOW-HZ HIGH-HZ PERIOD-MS RES), (limit CEILING RELEASE-MS) or (convolve WAVE WET [MS]); nil to take it off"))
+      (doc "Put an effect over everything the mixer renders, by name: a new name runs after the effects already there, a name already there is changed in its place, and nil takes it off. An echo is the mix delayed by MS, FB percent fed back and WET percent added, each repeat duller. A reverb is a room: four combs at SIZE percent of a middling room's lengths, DECAY percent fed back (up to 98), through two all-passes, WET percent added. A phase sweeps a short delay from LEAST-MS to MOST-MS and back every PERIOD-MS, FB percent fed back and WET percent added, each -95 to 95 and -100 to 100: a phaser at a millisecond or two, a flanger at more. A chorus is VOICES (1 to 4) copies of the mix, each delayed MS swept DEPTH-MS either way every PERIOD-MS, a share of the period apart, WET percent added. A drive takes the mix up GAIN percent and rounds it off, a quiet sound as it was and a loud one saturated, WET percent of the change kept. A crush keeps BITS of each sample's 16 and holds it HZ times a second, 0 for every frame. A sweep is a resonant low-pass swept from LOW-HZ up to HIGH-HZ and back every PERIOD-MS, RES 0 to 100 its resonance: an auto-wah. A limit holds the mix under CEILING percent of full scale, taking its gain down at once and back over RELEASE-MS. A convolve is the mix convolved with the first MS (default 2000) of the sample WAVE, made by sample!, as an impulse response: a recorded room, plate or spring, both channels through it, WET percent of the impulse's energy added, so a lone click gives back the dry sound at WET; the sample is read frame for frame whatever its rate, and the mixer's block must be a power of two. Changing a convolve remakes it, and what was ringing stops. A change that keeps an effect's kind and its lines' lengths keeps what is ringing in them."
         (returns VECTOR "The mixer")
         (sample "(Mixer effect! m (lit room) (list (lit reverb) 120 80 30))" "m"))
       (%effect! m name spec))
@@ -1707,5 +1760,5 @@
       (%jit-try!))))
 
 (doc (provide x/audio/mixer Mixer)
-  "Sound synthesised and mixed in x: wave tables, voices with envelopes, pitch slides, low-pass and pan, effects over the mix (echoes, a reverb, a phaser, a chorus, a drive, a crush, a swept filter, a limiter), a pitch and a cut moving every voice, and stereo signed 16-bit frames a block at a time for (Sdl audio-put!), the per-frame loops compiled and checked against pure x."
+  "Sound synthesised and mixed in x: wave tables, voices with envelopes, pitch slides, low-pass and pan, effects over the mix (echoes, a reverb, a phaser, a chorus, a drive, a crush, a swept filter, a limiter, a convolution), a pitch and a cut moving every voice, and stereo signed 16-bit frames a block at a time for (Sdl audio-put!), the per-frame loops compiled and checked against pure x."
   (example "(List ref 2 (Mixer wave (lit sine)))" "21"))
