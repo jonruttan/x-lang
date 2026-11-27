@@ -9,7 +9,7 @@
 #   - required langs are found by declared name, X_BUNDLE_DIR ahead of the
 #     bundle's siblings, and armed deepest first, each once;
 #   - the bundle's own root and %lang-lead follow, then its
-#     tests/harness.x;
+#     tests/harness.x, where it has one;
 #   - each way the inputs can be wrong stops with a message naming it;
 #   - in this tree, every dialect's body has an amalgam in build/boot/.
 #
@@ -131,7 +131,11 @@ want "X_BUNDLE_DIR ahead of the siblings" "(import-path! \"$TMP/elsewhere/core/l
 
 bundle "$TMP/notail/t" t he
 rm "$TMP/notail/t/tests/harness.x"
-refuses "no tests/harness.x" "tests/harness.x" "$(gen "$TMP/notail/t" || true)"
+got=$(gen "$TMP/notail/t" | tail -3 || true)
+want "a bundle with no tests/harness.x has no tail, and what follows is still the program" \
+"(def %lang-lead \"t\")
+
+(%module-program!)" "$got"
 
 bundle "$TMP/nodialect/t" t zz
 refuses "a dialect with no entry" "dialect 'zz', which has no entry" "$(gen "$TMP/nodialect/t" || true)"
