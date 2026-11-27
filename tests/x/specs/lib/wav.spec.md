@@ -64,17 +64,72 @@ size, a fmt chunk, the frames, and in one case a sampler's smpl chunk.
 ---
     (4 (1 3) 60)
 
+## floating point
+
+A floating-point file's fmt chunk has tag 3 (WAVE_FORMAT_IEEE_FLOAT), or
+tag 0xFFFE with the sub-format GUID 00000003-0000-0010-8000-00aa00389b71
+(WAVE_FORMAT_EXTENSIBLE, KSDATAFORMAT_SUBTYPE_IEEE_FLOAT), as Microsoft's
+WAVEFORMATEX and WAVEFORMATEXTENSIBLE documents lay them out. Its samples
+are IEEE 754 singles or doubles, little-endian, full scale -1 to 1.
+
+### 32-bit samples times 32768, rounded down, held to full scale, a NaN 0
+
+The frames are 0.5, -0.5, 1, -1, a NaN and -2^-16.
+
+```x
+(do (import x/codec/wav) (import x/codec/bytes)
+  (def r (Bytes of-hex (Str8 append "524946463c00000057415645666d74201000000003000100401f0000007d0000040020006461746118000000"
+                                    "0000003f000000bf0000803f000080bf0000c07f000080b7")))
+  (def d (Wav decode (first r) 0 (List ref 2 r)))
+  (list (Wav format (first r) 0 (List ref 2 r)) (List ref 1 d) (Bytes hex (list (List ref 2 d) 0 12))))
+```
+---
+    ((8000 1 32 6) 6 "004000c0ff7f00800000ffff")
+
+### 64-bit stereo in the extensible form, each frame its channels' mean
+
+The frames are (0.25 -0.75) and (1 1).
+
+```x
+(do (import x/codec/wav) (import x/codec/bytes)
+  (def r (Bytes of-hex (Str8 append "524946465c00000057415645666d742028000000feff0200401f000000f40100100040001600400003000000"
+                                    "0300000000001000800000aa00389b71" "6461746120000000"
+                                    "000000000000d03f000000000000e8bf000000000000f03f000000000000f03f")))
+  (def d (Wav decode (first r) 0 (List ref 2 r)))
+  (list (Wav format (first r) 0 (List ref 2 r)) (Bytes hex (list (List ref 2 d) 0 4))))
+```
+---
+    ((8000 2 64 2) "00e0ff7f")
+
+### a long file reads as a short one does
+
+8192 frames, alternately 0.5 and -0.5: long enough that the kernel is
+compiled where the toolchain has a backend.
+
+```x
+(do (import x/codec/wav) (import x/codec/bytes)
+  (def w (Bytes writer))
+  (Bytes put w (Bytes of-hex "524946462480000057415645666d74201000000003000100401f0000007d0000040020006461746100800000"))
+  (def e (Bytes writer))
+  ((fn (self i) (when (< i 4096) (Bytes put-u32 w 63) (Bytes put-u32 w 191) (Bytes put-u16 e 64) (Bytes put-u16 e 192) (self (+ i 1)))) 0)
+  (def r (Bytes written w))
+  (def d (Wav decode (first r) 0 (List ref 2 r)))
+  (list (List ref 1 d) (Bytes same? (list (List ref 2 d) 0 16384) (Bytes written e))))
+```
+---
+    (8192 #t)
+
 ## what it refuses
 
-### bytes that are not WAV, floating-point samples, and a file that ends early raise
+### bytes that are not WAV, 16-bit floating point, and a file that ends early raise
 
 ```x
 (do (import x/codec/wav) (import x/codec/bytes)
   (def try (fn (_ hex) (guard (e (Err text e)) ((fn (_ r) (Wav decode (first r) 0 (List ref 2 r))) (Bytes of-hex hex)))))
   (list (try "524946462800000057415645")
         (try "00000000000000000000000000000000")
-        (try "524946462800000057415645666d74201000000003000100401f0000007d0000040020006461746104000000000080bf")
+        (try "524946462800000057415645666d74201000000003000100401f0000803e0000020010006461746104000000ff7f0080")
         (try "524946462800000057415645666d74201000000001000100401f0000803e0000020010006461746110000000ff7f0080")))
 ```
 ---
-    ("Wav: no fmt chunk" "Wav: not a WAV file: no RIFF WAVE header" "Wav: floating-point samples are not read: only integer PCM" "Wav: the file ends early")
+    ("Wav: no fmt chunk" "Wav: not a WAV file: no RIFF WAVE header" "Wav: floating-point bits a sample other than 32 or 64" "Wav: the file ends early")

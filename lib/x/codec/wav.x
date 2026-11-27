@@ -1,19 +1,22 @@
-; wav.x -- Wav: WAV files (RIFF WAVE, integer PCM) read in pure x-lang.
+; wav.x -- Wav: WAV files (RIFF WAVE, integer and floating-point PCM) read
+; in pure x-lang.
 ;
 ; A WAV file is a RIFF file: "RIFF", its size, "WAVE", then chunks, each
 ; a four-byte id, a 32-bit little-endian size and that many bytes, padded
 ; to an even length.  The "fmt " chunk names the format: 1 is integer PCM,
-; 0xFFFE the extensible form, whose sub-format's first two bytes name it
-; again; then the channels, the frames a second, and the bits a sample.
-; The "data" chunk holds the frames, each a sample for every channel in
-; turn, little-endian, 8 bits unsigned or 16, 24 or 32 bits signed.  A
-; sampler's "smpl" chunk names the MIDI note the sound is at and its loops,
-; each with an inclusive last frame.
+; 3 IEEE floating point, 0xFFFE the extensible form, whose sub-format's
+; first two bytes name it again; then the channels, the frames a second,
+; and the bits a sample.  The "data" chunk holds the frames, each a sample
+; for every channel in turn, little-endian: integers 8 bits unsigned or
+; 16, 24 or 32 bits signed, floating point 32 or 64 bits, full scale
+; -1 to 1.  A sampler's "smpl" chunk names the MIDI note the sound is at
+; and its loops, each with an inclusive last frame.
 ;
 ; Out comes the sound as one channel of signed 16-bit little-endian
 ; samples, the form x/audio/mixer plays: each frame the mean of its
-; channels, rounded down, each sample its top 16 bits.  Floating-point samples, and any
-; other format, raise a label 'value naming what was wrong, as does a file
+; channels, rounded down; an integer sample its top 16 bits, a
+; floating-point one times 32768, held to -32768 to 32767, a NaN 0.  Any
+; other format raises a label 'value naming what was wrong, as does a file
 ; that is not WAV or ends early.
 (module x/codec/wav)
 
@@ -67,8 +70,9 @@
   (fn (_ p chunks id)
     (List find (fn (_ c) (%id? p (first c) id)) (List reverse chunks))))
 
-; The format of the file at P, LEN bytes: (RATE CHANNELS BITS FRAMES DATA),
-; DATA the offset of its frames.
+; The format of the file at P, LEN bytes: (RATE CHANNELS BITS FRAMES DATA
+; FLOAT?), DATA the offset of its frames, FLOAT? whether they are floating
+; point.
 (def %format
   (fn (_ p len)
     (def chunks (%chunks p len))
@@ -82,15 +86,110 @@
     (def kind (if (int= tag 65534)
                 (if (int< (List ref 2 fmt) 26) (%fail "an extensible fmt chunk with no sub-format") (%u16 p (int+ f 24)))
                 tag))
-    (unless (int= kind 1)
-      (%fail (if (int= kind 3) "floating-point samples are not read: only integer PCM" "a format that is not PCM")))
+    (unless (if (int= kind 1) #t (int= kind 3)) (%fail "a format that is not PCM"))
     (def channels (%u16 p (int+ f 2)))
     (def rate (%u32 p (int+ f 4)))
     (def bits (%u16 p (int+ f 14)))
     (when (int= channels 0) (%fail "no channels"))
-    (unless (match ((int= bits 8) #t) ((int= bits 16) #t) ((int= bits 24) #t) ((int= bits 32) #t) (#t #f))
-      (%fail "bits a sample other than 8, 16, 24 or 32"))
-    (list rate channels bits (int/ (List ref 2 data) (int* channels (int>> bits 3))) (List ref 1 data))))
+    (if (int= kind 3)
+      (unless (if (int= bits 32) #t (int= bits 64))
+        (%fail "floating-point bits a sample other than 32 or 64"))
+      (unless (match ((int= bits 8) #t) ((int= bits 16) #t) ((int= bits 24) #t) ((int= bits 32) #t) (#t #f))
+        (%fail "bits a sample other than 8, 16, 24 or 32")))
+    (list rate channels bits (int/ (List ref 2 data) (int* channels (int>> bits 3))) (List ref 1 data) (int= kind 3))))
+
+; --- Floating-point frames, as a kernel ------------------------------------
+;
+; Frames F to N written to byte address O as one channel of signed 16-bit
+; little-endian samples, read from byte address P at byte AT: each frame CH
+; samples of W bytes, 4 a single, 8 a double.  C counts the frame's steps:
+; below CH it adds a sample to ACC (the first is ACC), at CH ACC becomes the
+; mean times 32768, at CH + 1 that rounded down and held to -32768 to 32767,
+; a NaN 0, and at CH + 2 it is written.  Made on the first floating-point
+; file, so reading integer PCM loads no float stubs.
+(def %float-form
+  (lit (fn (self o p f n c ch w acc at)
+    (if (< f n)
+      (match
+        ((< c ch)
+          (self o p f n (+ c 1) ch w
+                (if (= c 0)
+                  (if (= w 4) (f32-ref (+ p at) 0) (f-ref (+ p at) 0))
+                  (f+ acc (if (= w 4) (f32-ref (+ p at) 0) (f-ref (+ p at) 0))))
+                (+ at w)))
+        ((= c ch)
+          (self o p f n (+ c 1) ch w (f* acc (f/ (i->f 32768) (i->f ch))) at))
+        ((= c (+ ch 1))
+          (self o p f n (+ c 1) ch w
+                (match
+                  ((f= acc acc)
+                    (match
+                      ((f< acc (i->f (- 0 32768))) (- 0 32768))
+                      ((f< (i->f 32767) acc) 32767)
+                      ((f< acc (i->f (f->i acc))) (- (f->i acc) 1))
+                      (#t (f->i acc))))
+                  (#t 0))
+                at))
+        (#t
+          (do (%mem-byte-set-at! o (+ f f) acc)
+              (%mem-byte-set-at! o (+ (+ f f) 1) (>> acc 8))
+              (self o p (+ f 1) n 0 ch w acc at))))
+      0))))
+
+(def %float-pure ())
+(def %k-float ())
+
+; Bytes from SEED for the float trial: singles (W 4) or doubles (W 8) of
+; either sign, 1/8 to 2 for singles and 1/32768 to 2 for doubles, so some
+; frames are held at full scale.
+(def %float-trial-bytes
+  (fn (_ w seed)
+    (def src (str-make 256))
+    ((fn (self i x)
+       (when (int< i 256)
+         (do (ptr-set! (str->ptr src) i
+                       (if (int= (int& i (int- w 1)) (int- w 1))
+                         (int+ (int& (int>> x 7) 128) (if (int= w 4) (int+ 62 (int& (int>> x 9) 1)) 63))
+                         (int& (int>> x 7) 255))
+                       1)
+             (self (int+ i 1) (int& (int+ (int* x 1103515245) seed) 2147483647)))))
+     0 seed)
+    src))
+
+; The float kernel K on trial bytes, CH channels of W bytes: the frames it
+; writes, as a list of their bytes' values.
+(def %float-trial
+  (fn (_ k ch w seed)
+    (def src (%float-trial-bytes w seed))
+    (def out (str-make 160))
+    (k (%addr out) (%addr src) 0 (int/ 256 (int* ch w)) 0 ch w 0 0)
+    ((fn (self i acc) (if (int< i (int* 2 (int/ 256 (int* ch w)))) (self (int+ i 1) (pair (int& (ptr-ref (str->ptr out) i 1) 255) acc)) acc)) 0 ())))
+
+(def %float-agrees?
+  (fn (_ engine)
+    (List all? (fn (_ t) (equal? (%float-trial %float-pure (first t) (List ref 1 t) 12345) (%float-trial (first engine) (first t) (List ref 1 t) 12345)))
+               (list (list 1 4) (list 2 4) (list 3 4) (list 1 8) (list 2 8)))))
+
+(def %float-entry ())
+
+; The float kernel: pure on the first floating-point file, compiled the
+; first time a long one is read, where the toolchain has a backend and it
+; agrees.
+(def %float-ready!
+  (fn (_ frames)
+    (when (null? %float-pure)
+      (set! %float-pure (word-form-pure %float-form))
+      (set! %k-float %float-pure))
+    (when (int< 4095 frames)
+      (guard (_ ())
+        (when (null? %float-entry)
+          (set! %float-entry
+            (Compiled make-on-demand (lit wav-float) (list %float-pure)
+              (fn (_)
+                (import x/tool/word-form-jit)
+                ((prim-ref (lit word-form) (lit jit-make)) (list %float-form) %float-agrees?))
+              (fn (_ ks) (set! %k-float (first ks))))))
+        ((fn (_ entry) (when (eq? (entry state) (lit interpreted)) (entry compile!))) %float-entry)))))
 
 ; --- The frames, as a kernel ----------------------------------------------
 ;
@@ -153,14 +252,17 @@
     ((fn (_ entry) (when (eq? (entry state) (lit interpreted)) (entry compile!))) %entry)))
 
 ; The sound at P, FRAMES frames of CHANNELS samples of BITS from offset AT,
-; as one channel of signed 16-bit samples.
+; floating point when FLOAT?, as one channel of signed 16-bit samples.
 (def %mono
-  (fn (_ p at frames channels bits)
-    (when (int< 4095 frames) (guard (_ ()) (%jit-try!)))
+  (fn (_ p at frames channels bits float?)
     (def width (int>> bits 3))
     (def out (str-make (int+ (int* frames 2) 1)))
-    (%k-mono (%addr out) (ptr->int p) 0 frames 0 channels width (if (int= bits 8) 0 (int- width 2)) (if (int= bits 8) 1 0)
-             0 at (int/ 65536 channels))
+    (if float?
+      (do (%float-ready! frames)
+          (%k-float (%addr out) (int+ (ptr->int p) at) 0 frames 0 channels width 0 0))
+      (do (when (int< 4095 frames) (guard (_ ()) (%jit-try!)))
+          (%k-mono (%addr out) (ptr->int p) 0 frames 0 channels width (if (int= bits 8) 0 (int- width 2)) (if (int= bits 8) 1 0)
+                   0 at (int/ 65536 channels))))
     out))
 
 ; The loop and root of the smpl chunk among CHUNKS of the file at P, within
@@ -181,13 +283,13 @@
        (List ref 1 c)))))
 
 (def-class Wav ()
-  (doc "WAV files read in pure x-lang: integer PCM at 8, 16, 24 or 32 bits, any channels, and a sampler's loop and root note, as one channel of signed 16-bit samples for x/audio/mixer."
+  (doc "WAV files read in pure x-lang: integer PCM at 8, 16, 24 or 32 bits or floating point at 32 or 64, any channels, and a sampler's loop and root note, as one channel of signed 16-bit samples for x/audio/mixer."
     (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"524946462800000057415645666d74201000000001000100401f0000803e0000020010006461746104000000ff7f0080\")) (Wav format (first r) 0 (List ref 2 r)))" "(8000 1 16 2)")
     (see decode))
   (static
     (method format (self (param s STRING "Bytes holding a WAV file")
                          . (param span INTEGER "START, then LENGTH: which bytes of s; default all of s"))
-      (doc "The file's frames a second, channels, bits a sample and frames, from its fmt and data chunks, without reading the frames. Give LENGTH for a file held in a buffer: s's own length is measured to its first NUL, and a WAV file has many. Raises a label 'value when the bytes are not a WAV file of integer PCM."
+      (doc "The file's frames a second, channels, bits a sample and frames, from its fmt and data chunks, without reading the frames. Give LENGTH for a file held in a buffer: s's own length is measured to its first NUL, and a WAV file has many. Raises a label 'value when the bytes are not a WAV file of integer or floating-point PCM. Floating-point BITS are 32 or 64."
         (returns LIST "(RATE CHANNELS BITS FRAMES)")
         (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"524946462800000057415645666d74201000000001000100401f0000803e0000020010006461746104000000ff7f0080\")) (Wav format (first r) 0 (List ref 2 r)))" "(8000 1 16 2)"))
       (def sp (%span s span))
@@ -196,7 +298,7 @@
       (list (List ref 0 f) (List ref 1 f) (List ref 2 f) (List ref 3 f)))
     (method decode (self (param s STRING "Bytes holding a WAV file")
                          . (param span INTEGER "START, then LENGTH, as for format"))
-      (doc "The sound as one channel: each frame the mean of its channels, rounded down, each sample its top 16 bits, signed, little-endian, the form (Mixer sample!) and (Mixer cycle!) take. With it, a sampler chunk's first loop, END past its last frame, and the MIDI note the sound is at (60 is C4), each nil when the file has none. Raises a label 'value naming what is wrong with a file that is not WAV, ends early, or holds floating-point or other samples."
+      (doc "The sound as one channel: each frame the mean of its channels, rounded down, an integer sample its top 16 bits, a floating-point one times 32768 held to -32768 to 32767 (a NaN 0), signed, little-endian, the form (Mixer sample!) and (Mixer cycle!) take. With it, a sampler chunk's first loop, END past its last frame, and the MIDI note the sound is at (60 is C4), each nil when the file has none. Raises a label 'value naming what is wrong with a file that is not WAV, ends early, or holds samples of another format."
         (returns LIST "(RATE FRAMES PCM LOOP ROOT): PCM a buffer of FRAMES x 2 bytes; LOOP (START END) or nil; ROOT a MIDI note or nil")
         (example "(do (import x/codec/bytes) (def r (Bytes of-hex \"524946462800000057415645666d74201000000001000100401f0000803e0000020010006461746104000000ff7f0080\")) (def d (Wav decode (first r) 0 (List ref 2 r))) (list (first d) (List ref 1 d) (Bytes hex (list (List ref 2 d) 0 4))))" "(8000 2 \"ff7f0080\")"))
       (def sp (%span s span))
@@ -205,7 +307,7 @@
       (def f (%format p len))
       (def frames (List ref 3 f))
       (def smpl (%sampler p (%chunks p len) frames))
-      (list (first f) frames (%mono p (List ref 4 f) frames (List ref 1 f) (List ref 2 f)) (first smpl) (List ref 1 smpl)))))
+      (list (first f) frames (%mono p (List ref 4 f) frames (List ref 1 f) (List ref 2 f) (List ref 5 f)) (first smpl) (List ref 1 smpl)))))
 
 (doc (provide x/codec/wav Wav)
   (example "(do (import x/codec/bytes) (let ((r (Bytes of-hex \"524946462800000057415645666d74201000000001000100401f0000803e0000020010006461746104000000ff7f0080\"))) (Wav format (first r) 0 (List ref 2 r))))" "(8000 1 16 2)")
