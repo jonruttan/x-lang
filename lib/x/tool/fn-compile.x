@@ -12,7 +12,9 @@
 ;
 ;   integers   int+ int- int* int/ int% int& int| int^ int<< int>> on raw words,
 ;              boxed only where a value leaves the arithmetic; int< and int=
-;              as a branch in a test, #t or #f as a value; + - < > <= >= =
+;              as a branch in a test, #t or #f as a value; a door that hands
+;              an operand to its type's handler on raw words only when its
+;              operands are integers, and a call of the door otherwise; + - < > <= >= =
 ;              of two operands, bound at the root, on raw words when both
 ;              are integers and the sum or difference fits a word, and a
 ;              call of the operator otherwise
@@ -485,6 +487,9 @@
       (fn (_ e) (if (eq? mode (lit raw)) (list (lit %unbox) e) e)))
     (match
       ((obj-same? v %fc-target) (value (%fc-call (lit %fc-self) args)))
+      ((and (null? %fc-door-mode) (%fc-dispatches? v args)) (%fc-door-tree (pair h args) mode))
+      ((and (eq? %fc-door-mode (lit slow)) (%fc-dispatches? v args))
+        (value (%fc-call (list (lit rest) (%fc-cell h)) args)))
       ((not (null? raw))
         (if (eq? mode (lit raw))
           (%fc-raw-op (rest raw) args)
@@ -568,6 +573,112 @@
           (if (or (eq? h (lit +)) (eq? h (lit -))) (list (lit %box) r) (%fc-bool r))
           (%fc-call (list (lit rest) (%fc-cell h)) (list a b)))))
     (if (eq? mode (lit raw)) (list (lit %unbox) form) form)))
+
+; --- An integer door whose operand is not an integer ----------------------------
+;
+; Interpreted, int+ int- int* int/ int% int< and int= of two operands hand
+; them to the handler an operand's type registers for the operator (the
+; engine's x_type_op_try): (int- n 8), n a bigint, answers the bigint's
+; difference, which no instruction on n's raw word makes.  The bitwise doors
+; and int- of one operand never dispatch, and answer an integer whatever
+; they read.
+(def %fc-dispatch-doors (list int+ int- int* int/ int% int< int=))
+
+; How the rewrite carries a door that dispatches: () checks its operands
+; (%fc-door-tree), trusted carries it on raw words, and slow calls it.
+(def %fc-door-mode ())
+
+(def %fc-dispatches?
+  (fn (_ v args)
+    (and (pair? args) (pair? (rest args))
+         (List any? (fn (_ d) (obj-same? d v)) %fc-dispatch-doors))))
+
+; The door E applies, when E is (H ARG ...) with H a free name bound to one
+; of %fc-raw-ops, or nil.
+(def %fc-door-of
+  (fn (_ e)
+    (def cell
+      (if (and (pair? e) (symbol? (first e)) (not (eq? (first e) %fc-self))
+               (not (%fc-memq (first e) %fc-names)))
+        (Env cell %fc-env (first e))
+        ()))
+    (if (or (null? cell) (null? (%fc-assq (rest cell) %fc-raw-ops))) () (rest cell))))
+
+; The operands of the tree of doors under the door E, in the order they are
+; evaluated: each (OPERAND . CHECKED), CHECKED when a door that dispatches
+; takes it.  Under E an operation of the tree is one of %fc-raw-ops; a
+; comparison there is an operand.
+(def %fc-door-leaves
+  (fn (self ops checked)
+    (if (null? ops) ()
+      (%append
+        ((fn (_ v)
+           (if (null? v)
+             (list (pair (first ops) checked))
+             (self (rest (first ops)) (%fc-dispatches? v (rest (first ops))))))
+         (%fc-door-of (first ops)))
+        (self (rest ops) checked)))))
+
+; The operands OPS, each operand of the tree replaced, in order, by the
+; next of SUBS.
+(def %fc-door-subst
+  (fn (self ops subs)
+    (if (null? ops) ()
+      ((fn (_ e)
+         (pair e (self (rest ops) subs)))
+       (if (null? (%fc-door-of (first ops)))
+         ((fn (_ s) (%set-first! subs (rest (first subs))) s) (first (first subs)))
+         (pair (first (first ops)) (self (rest (first ops)) subs)))))))
+
+; E, a door that dispatches heading a tree of doors, in MODE.  Each operand
+; of the tree is bound to a local, in order, unless it is an integer or a
+; local that no later operand can write; then, when every operand a
+; dispatching door takes is an integer, the tree runs on raw words as
+; before, and otherwise each dispatching door is called with the values,
+; as the interpreter calls it.  A tree whose every such operand is an
+; integer literal is the raw tree alone.
+(def %fc-door-tree
+  (fn (_ e mode)
+    (def leaves (%fc-door-leaves (rest e) #t))
+    (def int-type (type-of 0))
+    (def hoists (pair () ()))
+    (def checks (pair () ()))
+    (def subs
+      ((fn (self l)
+         (if (null? l) ()
+           ((fn (_ leaf checked)
+              (def later-atoms (List all? (fn (_ x) (not (pair? (first x)))) (rest l)))
+              (def kept
+                (match
+                  ((eq? (type-of leaf) int-type) leaf)
+                  ((and (symbol? leaf) (not (eq? leaf %fc-self)) (%fc-memq leaf %fc-names) later-atoms)
+                    leaf)
+                  (#t
+                    ((fn (_ t)
+                       (%set-first! hoists (pair (list (lit def) t (%fc-value leaf)) (first hoists)))
+                       (set! %fc-names (pair t %fc-names))
+                       t)
+                     (%fc-fresh "%fc-t")))))
+              (when (and checked (not (eq? (type-of kept) int-type)))
+                (%set-first! checks (pair kept (first checks))))
+              (pair kept (self (rest l))))
+            (first (first l)) (rest (first l)))))
+       leaves))
+    (def tree (pair (first e) (%fc-door-subst (rest e) (pair subs ()))))
+    (def carried
+      (fn (_ m how)
+        (set! %fc-door-mode how)
+        ((fn (_ r) (set! %fc-door-mode ()) r) (%fc-expr tree m))))
+    (if (null? (first checks))
+      (carried mode (lit trusted))
+      ((fn (_ int)
+         (def tests (List map (fn (_ c) (list (lit %type-is?) c int)) (List reverse (first checks))))
+         (def slow (carried (lit value) (lit slow)))
+         (%fc-with (List reverse (first hoists))
+           (list (lit if) (if (null? (rest tests)) (first tests) (pair (lit and) tests))
+             (carried mode (lit trusted))
+             (if (eq? mode (lit raw)) (list (lit %unbox) slow) slow))))
+       (%fc-const (rest (%fc-assq (lit integer?) %fc-type-names)) (%fc-name "%y:integer?"))))))
 
 ; (C SEL ARG ...) with C a class: the class runs its public static method
 ; SEL as (M C ARG ...), so the send is that call, M resolved by method-of
@@ -1115,6 +1226,7 @@
     (set! %fc-env (Fn env f))
     (set! %fc-self (first ps))
     (set! %fc-count 0)
+    (set! %fc-door-mode ())
     (set! %fc-taken (%append ps (%fc-mentions (Fn body f))))
     (set! %fc-outlined ())
     (set! %fc-outer (%append ps (%fc-defs (Fn body f))))

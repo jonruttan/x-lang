@@ -107,6 +107,35 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     (#t ('lt 7 3 #f #t))
 
+### an integer door hands an operand that is not an integer to its type, as the interpreter does
+
+int+ int- int* int/ int% int< and int= of two operands call the handler an
+operand's type registers, so a bigint operand answers a bigint.  bigint.x's
+own mixed paths end that way, (int- acc x) with acc a bigint.
+
+```x
+(import x/num/bigint)
+(def %fc-big-env (Module env (lit x/num/bigint)))
+(def %fc-big (+ 9223372036854775807 1))
+(def %fc-big-before (list (- %fc-big 8) (+ %fc-big 8) (* %fc-big 3)))
+(compile-fn! (lit %big-sub2) (eval (lit %big-sub2) %fc-big-env))
+(compile-fn! (lit %big-add2) (eval (lit %big-add2) %fc-big-env))
+(compile-fn! (lit %big-mul2) (eval (lit %big-mul2) %fc-big-env))
+(def %fc-doors
+  (fn (_ a b)
+    (list (int+ (int* a 2) (int- b 1)) (int< a b) (int= a a) (if (int< b a) (lit yes) (lit no)))))
+(def %fc-doors-all (fn (_) (list (%fc-doors 3 10) (%fc-doors %fc-big 5) (%fc-doors 7 %fc-big))))
+(def %fc-doors-before (%fc-doors-all))
+(def %fc-e (compile-fn! (lit %fc-doors) %fc-doors))
+(write (list (%fc-e state)
+             (equal? %fc-big-before (list (- %fc-big 8) (+ %fc-big 8) (* %fc-big 3)))
+             (/ (- %fc-big 8) 10)
+             (equal? %fc-doors-before (%fc-doors-all))
+             (%fc-doors %fc-big 5)))
+```
+---
+    ('compiled #t 922337203685477580 #t (18446744073709551620 #f #t 'yes))
+
 ### + - < > <= >= = on two integers answer as the interpreter does
 
 Bound at the root, each of these runs on the operands' raw words when both
