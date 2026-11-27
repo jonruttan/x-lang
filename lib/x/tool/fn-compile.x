@@ -19,7 +19,8 @@
 ;   objects    first rest pair eq? null? not obj-ref obj-set!, and pair? and
 ;              symbol? as a read of the operand's type name
 ;   control    if when unless match do and or, def of a local, set! of a
-;              local or a free name, let as fresh locals (not a named let),
+;              local or a free name, let as fresh locals, a named let as
+;              the fn literal it stands for,
 ;              guard outlined into closures the engine's guard runs
 ;   closures   a fn literal outlined, handed the locals it reads as values
 ;   calls     a call of F itself (a jump in tail position), and a call of
@@ -737,8 +738,11 @@
 ; Before the rest of the rewrite it becomes (do (def N' E) ... BODY ...),
 ; with a fresh local N' for each N and for each def of BODY's own scope,
 ; renamed through BODY.  Each E keeps the enclosing names, so the binding
-; stays parallel.  A named let, (let NAME BINDINGS ...), is a loop and is
-; refused.
+; stays parallel.  A named let, (let NAME ((N E) ...) BODY ...), is the
+; fn literal it stands for, ((fn (NAME N ...) BODY ...) E ...), as
+; x/core/control builds it, and is rewritten as that literal called where
+; it is written: a closure of its own, compiled in turn, whose calls of
+; NAME are jumps.
 
 ; Is `let` in the closure being rewritten the let of x/core/control?
 (def %fc-let? #f)
@@ -788,10 +792,31 @@
   (fn (_ b)
     (and (pair? b) (symbol? (first b)) (pair? (rest b)) (null? (rest (rest b))))))
 
+; (let NAME ((N E) ...) BODY ...) as ((fn (NAME N ...) BODY ...) E ...),
+; rewritten in the scope M.  Its fn is the one x/core/control's let would
+; build, so it is refused when fn is not the core fn here.
+(def %fc-named-let
+  (fn (_ e m)
+    (def name (first (rest e)))
+    (def bs (if (pair? (rest (rest e))) (first (rest (rest e))) ()))
+    (unless (and (pair? (rest (rest e))) (List list? bs) (List all? %fc-let-binding? bs))
+      (%fc-refuse "a named let whose bindings are not a list of (name value)"))
+    (def body (rest (rest (rest e))))
+    (unless (pair? body) (%fc-refuse "a named let with no body"))
+    (unless %fc-fn? (%fc-refuse "a named let where fn is not the core fn"))
+    (%fc-unlet
+      (pair (pair (lit fn) (pair (pair name (List map first bs)) body))
+            (List map (fn (_ b) (first (rest b))) bs))
+      m)))
+
 (def %fc-unlet-let
   (fn (_ e m)
-    (when (and (pair? (rest e)) (symbol? (first (rest e))))
-      (%fc-refuse "a named let"))
+    (if (and (pair? (rest e)) (symbol? (first (rest e))))
+      (%fc-named-let e m)
+      (%fc-unlet-plain e m))))
+
+(def %fc-unlet-plain
+  (fn (_ e m)
     (def bs (if (pair? (rest e)) (first (rest e)) ()))
     (unless (and (pair? (rest e)) (List list? bs) (List all? %fc-let-binding? bs))
       (%fc-refuse "a let whose bindings are not a list of (name value)"))
@@ -1326,7 +1351,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let (not a named let) compile in place; a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn. A fn literal is outlined and handed the locals of F it reads as values: one called where it is written, ((fn (self ...) ...) arg ...), with self only at the head of a call, becomes a closure taking those locals as parameters, compiled in turn; one that reads no local is made once and compiled in turn; any other answers a closure holding the values whose one call is of its body compiled in turn, so its self-calls stay compiled; one whose locals F writes after it, or whose body sets one, is refused. A call of any other closure, of a C primitive the engine's ISA manifest does not label spine, by name or fetched where it is called as ((prim-ref (lit group) (lit name)) ...), or of display, error or symbol->str passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it. A rest parameter, (fn (self a . more) ...), is bound to the list of the arguments after a's, and such a function's self-call is a call and not a jump. Applied, by apply or by the engine as a type's handler is, the compiled F takes the values it is handed as a closure does: the first compile puts a routine in this base's callable-apply slot (Base slot!) that tells it so, and a state image is written with the engine's routine back in the slot. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let compile in place, and a named let as the fn literal it stands for, ((fn (name ...) body ...) init ...); a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn. A fn literal is outlined and handed the locals of F it reads as values: one called where it is written, ((fn (self ...) ...) arg ...), with self only at the head of a call, becomes a closure taking those locals as parameters, compiled in turn; one that reads no local is made once and compiled in turn; any other answers a closure holding the values whose one call is of its body compiled in turn, so its self-calls stay compiled; one whose locals F writes after it, or whose body sets one, is refused. A call of any other closure, of a C primitive the engine's ISA manifest does not label spine, by name or fetched where it is called as ((prim-ref (lit group) (lit name)) ...), or of display, error or symbol->str passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it. A rest parameter, (fn (self a . more) ...), is bound to the list of the arguments after a's, and such a function's self-call is a call and not a jump. Applied, by apply or by the engine as a type's handler is, the compiled F takes the values it is handed as a closure does: the first compile puts a routine in this base's callable-apply slot (Base slot!) that tells it so, and a state image is written with the engine's routine back in the slot. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 ; The library's own hot loops, compiled wherever the compiler loads: the
 ; tower dialects import this module at boot, and a program on helium that
