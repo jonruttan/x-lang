@@ -198,6 +198,38 @@ esac
 got=$(X_BUNDLE_DIR=tools/contract/bundles/ sh x.sh --no-pin -q -c '(write (rest (Sys args (lit program))))' argprobe 2>/dev/null || true)
 want "with an expression given, a bare word is the program's argument" '("argprobe")' "$got"
 
+# A bundle's (requires-bundle ...) rows are walked to any depth, and every
+# bundle on the way is armed: a chain chaina -> chainb -> chainc arms all
+# three, and a diamond (dtop on dleft and dright, both on dbase) arms all four.
+# The middle of a chain went missing once, when the walk's recursion
+# overwrote the directory it was about to append.  The roots are read off the
+# import path itself, since a missed import would arm a lost bundle on demand
+# and hide that it had been lost.
+mkbundle() {
+	mkdir -p "$TMP/bundles/$1/lib/$1"
+	printf '(name "%s")\n(dialect he)\n' "$1" > "$TMP/bundles/$1/bundle.xon"
+	for _req in $2; do
+		printf '(requires-bundle "%s")\n' "$_req" >> "$TMP/bundles/$1/bundle.xon"
+	done
+	if [ -n "$3" ]; then
+		printf '(entry run)\n' >> "$TMP/bundles/$1/bundle.xon"
+		printf '(module %s/run)\n(def main (fn (_) ()))\n(provide %s/run main)\n' "$1" "$1" \
+			> "$TMP/bundles/$1/lib/$1/run.x"
+	fi
+}
+mkbundle chainc ""
+mkbundle chainb "chainc"
+mkbundle chaina "chainb" entry
+mkbundle dbase ""
+mkbundle dleft "dbase"
+mkbundle dright "dbase"
+mkbundle dtop "dleft dright" entry
+roots='(write (List length (List filter (fn (_ r) (Str8 index-of "/bundles/" r)) (first %import-roots-cell))))'
+got=$(X_BUNDLE_DIR="$TMP/bundles/" sh x.sh --no-pin --no-image -q -l chaina -c "$roots" 2>&1 || true)
+want "a chain of requires-bundle arms every bundle in it" "3" "$got"
+got=$(X_BUNDLE_DIR="$TMP/bundles/" sh x.sh --no-pin --no-image -q -l dtop -c "$roots" 2>&1 || true)
+want "a diamond of requires-bundle arms each bundle once" "4" "$got"
+
 # --help lists every option the parser accepts.  The labels are read off the
 # option loop's case arms, so an option added there without a help line fails
 # here rather than staying undocumented, which is how --install-bundle,
