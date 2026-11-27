@@ -38,7 +38,7 @@ its README and each label from its `bitwise.xon`, and writes into `--out`
 | `run.x` | the entry: boots the core, arms the roots, runs the command line |
 | `gen.x` | class `Bitwise`: seeding, field, palette, costume, the owl, the formats; `(Bitwise render name fmt tagline label uid)`, `(Bitwise params name)`, `(Bitwise diff a b)` |
 | `cli.x` | class `BitwiseCli`: arguments, workspace discovery, README taglines, files and PNGs; `(BitwiseCli main args)` |
-| `glyphs.xon` | printable ASCII, λ and ▲ as outlines from Roboto Mono Regular (Apache-2.0); ▲ borrowed from Menlo |
+| `glyphs.xon` | printable ASCII, λ, ▲ and the chess kings ♔ ♚ as outlines from Roboto Mono Regular (Apache-2.0); ▲ ♔ ♚ borrowed from Menlo |
 
 The project files this app reads live in the projects: each repository
 carries `bitwise.xon` at its root. Each file here is one class and one public global, every helper a `%`-static on

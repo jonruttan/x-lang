@@ -74,6 +74,25 @@ touches; these two are the ones whose first draw was outside it.
 (#t #t #t #t #t)
 ```
 
+### a costume's chess kings are set from their own outlines
+
+```x
+(do
+  (import-path! "apps")
+  (import bitwise/gen)
+  (Bitwise root! "apps/bitwise")
+  (Bitwise costume-load! "tests/x/fixtures/bitwise/costumes/x-chess.xon")
+  (def svg (first (Bitwise render "x-chess" "mark" "" "" "o")))
+  (display (list (Str8 includes? "<path id=\"o-97\" d=\"M" svg)
+                 (Str8 includes? "<path id=\"o-98\" d=\"M" svg)
+                 (Str8 includes? "<use href=\"#o-97\" transform=\"translate(" svg)
+                 (Str8 includes? "<use href=\"#o-98\" transform=\"translate(" svg))))
+```
+---
+```output
+(#t #t #t #t)
+```
+
 ### two renderings that differ are reported at the first byte
 
 ```x
