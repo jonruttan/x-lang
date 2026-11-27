@@ -140,6 +140,42 @@ pure kernels answer the same.
 ---
     #t
 
+## the convolver
+
+### a thousand-frame impulse over blocks of 256 gives the convolution by its definition
+
+Four pieces of 256 frames, the compiled kernels called straight. The
+signal is three clicks, at frames 0, 300 and 700, in the left channel of
+four stereo blocks, so the definition is three shifted copies of the
+impulse; the right channel stays as it was. On a 4-byte word the pure
+kernels answer the same, unrun here at this size.
+
+```x
+(if (< %word-size 8) (list #t #t #t #t)
+  (do (import x/num/frequency)
+    (import x/core/doors ptr-set-word! ptr-ref-word str->ptr str-make)
+    (Frequency jit!)
+    (def words (fn (_ n f)
+      (def r (str-make (* n %word-size)))
+      ((fn (self i) (when (< i n) (do (ptr-set-word! (str->ptr r) (* i %word-size) (f i)) (self (+ i 1))))) 0)
+      r))
+    (def h (fn (_ i) (- (% (* i 7919) 20011) 10005)))
+    (def x (fn (_ t) (match ((= t 0) 3000) ((= t 300) -2000) ((= t 700) 1500) (#t 0))))
+    (def c (Frequency convolver (words 1000 h) 1000 256))
+    (def tap (fn (_ t s) (if (if (< (- s 1) t) (< (- t s) 1000) #f) (* (x s) (h (- t s))) 0)))
+    (def want (fn (_ t) (+ (x t) (tap t 0) (tap t 300) (tap t 700))))
+    (def block (fn (_ k)
+      (def m (words 512 (fn (_ i) (if (= (% i 2) 0) (x (+ (* 256 k) (/ i 2))) 7))))
+      (c convolve! m 2 0 1)
+      ((fn (self j ok) (if (< j 256)
+         (self (+ j 1) (if ok (if (= (ptr-ref-word (str->ptr m) (* (* 2 j) %word-size)) (want (+ (* 256 k) j)))
+                                (= (ptr-ref-word (str->ptr m) (* (+ 1 (* 2 j)) %word-size)) 7) #f) #f))
+         ok)) 0 #t)))
+    (List map block (list 0 1 2 3))))
+```
+---
+    (#t #t #t #t)
+
 ## memory
 
 ### a loop of transforms keeps the heap flat
@@ -158,6 +194,29 @@ window, so the heap ends within a window of where it began.
     (def c0 (Heap count))
     (def run (fn (self i) (if (< i 300) (do (p forward v) (self (+ i 1))) i)))
     (def ok (run 0 #t))
+    (< (- (Heap count) c0) 6000000)))
+```
+---
+    #t
+
+### a stream of convolver blocks keeps the heap flat
+
+A thousand blocks churn about fourteen million objects in dispatch; the
+convolver owes them, so the heap ends within a window of where it began.
+
+```x
+(if (< %word-size 8) #t
+  (do (import x/num/frequency) (import x/sys/gc)
+    (import x/core/doors str-make mem-set str->ptr)
+    (Frequency jit!)
+    (def ir (str-make (* 600 %word-size)))
+    (mem-set (str->ptr ir) 1 (* 600 %word-size))
+    (def mix (str-make (* 512 %word-size)))
+    (mem-set (str->ptr mix) 0 (* 512 %word-size))
+    (def c (Frequency convolver ir 600 256))
+    (Heap collect)
+    (def c0 (Heap count))
+    ((fn (self i) (when (< i 1000) (do (c convolve! mix 2 0 (/ 1 1000000)) (self (+ i 1))))) 0)
     (< (- (Heap count) c0) 6000000)))
 ```
 ---
