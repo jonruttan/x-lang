@@ -481,11 +481,12 @@ pure-x loops and again with the compiled ones, byte for byte.
 `click` makes a sample of FRAMES frames, silent but for LEVEL at frame
 AT. A click at frame 0 at 100 wet adds the mix to itself, so it renders as
 the mix without it at twice the gain, byte for byte, whatever the click's
-level.
+level. The blocks are the least a mixer takes, 16 frames, so the
+transforms are small enough to run pure on a 4-byte word.
 
 ```x
 (do (import x/audio/mixer) (import x/core/doors mem-cmp mem-copy mem-set ptr-set! str->ptr str-make int& int>>)
-  (def keep (fn (_ r) (def c (str-make 1024)) (mem-copy (str->ptr c) (str->ptr r) 1024) c))
+  (def keep (fn (_ r) (def c (str-make 64)) (mem-copy (str->ptr c) (str->ptr r) 64) c))
   (def click (fn (_ name frames at level)
     (def pcm (str-make (* 2 frames)))
     (mem-set (str->ptr pcm) 0 (* 2 frames))
@@ -494,14 +495,14 @@ level.
     (Mixer sample! name pcm frames 8000 "C4")))
   (def tone (list (list (list (lit hz) 300) (list (lit env) (list 0 40) (list 60 0)))))
   (def blocks (fn (_ m) (list (keep (Mixer block! m)) (keep (Mixer block! m)) (keep (Mixer block! m)))))
-  (def same (fn (_ a b) (List all? (fn (_ k) (= 0 (mem-cmp (str->ptr (List ref k a)) (str->ptr (List ref k b)) 1024))) (list 0 1 2))))
+  (def same (fn (_ a b) (List all? (fn (_ k) (= 0 (mem-cmp (str->ptr (List ref k a)) (str->ptr (List ref k b)) 64))) (list 0 1 2))))
   (def dry (fn (_)
-    (def m (Mixer make 8000 256))
+    (def m (Mixer make 8000 16))
     (Mixer gain! m 200)
     (Mixer play! m tone 0 100)
     (blocks m)))
   (def wet (fn (_ name)
-    (def m (Mixer make 8000 256))
+    (def m (Mixer make 8000 16))
     (Mixer effect! m (lit room) (list (lit convolve) name 100))
     (Mixer play! m tone 0 100)
     (blocks m)))
@@ -514,34 +515,34 @@ level.
 
 ### a delayed click is an echo
 
-A click at frame 300, past the first block of 256: the mix convolved with
-it is the dry mix plus the dry mix 300 frames on, both channels, through
+A click at frame 20, past the first block of 16: the mix convolved with
+it is the dry mix plus the dry mix 20 frames on, both channels, through
 four blocks. At a gain of 100 a block's samples are the mix's words, so
 the dry render's samples give the sum exactly; each block's count of
 samples that differ from it is 0.
 
 ```x
 (do (import x/audio/mixer) (import x/core/doors mem-copy mem-set ptr-ref ptr-set! str->ptr str-make)
-  (def keep (fn (_ r) (def c (str-make 1024)) (mem-copy (str->ptr c) (str->ptr r) 1024) c))
-  (def pcm (str-make 800))
-  (mem-set (str->ptr pcm) 0 800)
-  (ptr-set! (str->ptr pcm) 600 64 1)
-  (Mixer sample! (lit spec-late) pcm 400 8000 "C4")
+  (def keep (fn (_ r) (def c (str-make 64)) (mem-copy (str->ptr c) (str->ptr r) 64) c))
+  (def pcm (str-make 60))
+  (mem-set (str->ptr pcm) 0 60)
+  (ptr-set! (str->ptr pcm) 40 64 1)
+  (Mixer sample! (lit spec-late) pcm 30 8000 "C4")
   (def tone (list (list (list (lit hz) 440) (list (lit pan) -30) (list (lit env) (list 0 50) (list 40 0)))))
   (def run (fn (_ m) ((fn (self k acc) (if (< k 4) (self (+ k 1) (pair (keep (Mixer block! m)) acc)) (List reverse acc))) 0 ())))
   (def s16 (fn (_ bs g)
-    (def r (List ref (/ g 512) bs))
-    (def i (* 2 (% g 512)))
+    (def r (List ref (/ g 32) bs))
+    (def i (* 2 (% g 32)))
     ((fn (_ v) (if (< 32767 v) (- v 65536) v)) (+ (ptr-ref (str->ptr r) i 1) (* 256 (ptr-ref (str->ptr r) (+ i 1) 1))))))
-  (def a (Mixer make 8000 256))
+  (def a (Mixer make 8000 16))
   (Mixer effect! a (lit hall) (list (lit convolve) (lit spec-late) 100))
   (Mixer play! a tone 0 100)
-  (def b (Mixer make 8000 256))
+  (def b (Mixer make 8000 16))
   (Mixer play! b tone 0 100)
   (def wet (run a))
   (def dry (run b))
-  (def want (fn (_ g) (+ (s16 dry g) (if (< g 600) 0 (s16 dry (- g 600))))))
-  (List map (fn (_ k) ((fn (self g n) (if (< g (* 512 (+ k 1))) (self (+ g 1) (if (= (s16 wet g) (want g)) n (+ n 1))) n)) (* 512 k) 0))
+  (def want (fn (_ g) (+ (s16 dry g) (if (< g 40) 0 (s16 dry (- g 40))))))
+  (List map (fn (_ k) ((fn (self g n) (if (< g (* 32 (+ k 1))) (self (+ g 1) (if (= (s16 wet g) (want g)) n (+ n 1))) n)) (* 32 k) 0))
     (list 0 1 2 3)))
 ```
 ---
@@ -556,7 +557,7 @@ samples that differ from it is 0.
   (Mixer sample! (lit spec-hush) pcm 8 8000 "C4")
   (def try (fn (_ block name)
     (guard (e (Err text e)) (Mixer effect! (Mixer make 8000 block) (lit c) (list (lit convolve) name 50)))))
-  (list (try 256 (lit sine)) (try 250 (lit spec-hush)) (try 256 (lit spec-hush))))
+  (list (try 16 (lit sine)) (try 20 (lit spec-hush)) (try 16 (lit spec-hush))))
 ```
 ---
     ("Mixer: convolve: the wave is not a sample" "Mixer: convolve: the mixer's block is not a power of two" "Mixer: convolve: the sample is silent")
