@@ -254,14 +254,18 @@ bundle_deps_collect() {
 			exit 1
 		fi
 	fi
-	for _row in $(bundle_reqs_of "$_dir"); do
+	# The directory is kept as $4: the shell's variables are global, so the
+	# recursion below rebinds _dir, and a chain A -> B -> C would append C
+	# in B's place.  Positional parameters are each call's own.
+	set -- "$1" "$2" "$3" "$_dir"
+	for _row in $(bundle_reqs_of "$4"); do
 		bundle_deps_collect "${_row%%|*}" "$2 $1" "${_row#*|}"
 	done
 	# Append after our own dependencies, so a diamond arms the shared one
 	# once and earliest.
 	case " $BUNDLE_DEPS " in
-		*" $_dir "*) ;;
-		*) BUNDLE_DEPS="$BUNDLE_DEPS $_dir" ;;
+		*" $4 "*) ;;
+		*) BUNDLE_DEPS="$BUNDLE_DEPS $4" ;;
 	esac
 }
 
