@@ -776,10 +776,10 @@ Four things that are not obvious, each of which costs an afternoon:
   - the bundle's own `import-path!` and `%lang-lead`, as `x.sh`
     emits them before a bundle's entry;
   - the bundle's committed `tests/harness.x`: its imports and REPL printer,
-    the part of its entry that sets the lang up without starting it.
+    the part of its entry that sets the lang up without starting it. A bundle
+    with none has no tail, and its specs import what they use.
 
-  Every way the inputs can be wrong stops with a message: no `tests/harness.x`,
-  a dialect with no entry or no built body, a required lang not found or
+  Every way the inputs can be wrong stops with a message: a dialect with no entry or no built body, a required lang not found or
   claimed twice, a cycle. `make check-bundle-kit-harness` holds the generator to
   this, and to every dialect's body being built.
 - **The suite can boot from a state image of the harness.** The platform's

@@ -34,7 +34,8 @@
 # working trees.
 #
 # The bundle's tests/harness.x comes last: its imports and REPL printer, the
-# part of its entry that sets the lang up without starting it.
+# part of its entry that sets the lang up without starting it.  A bundle may
+# have none; its specs then import what they use.
 #
 # BUNDLE is the bundle root and X the x to ask; the shim that sources this sets
 # both.  The generated file embeds absolute paths, so it is written, never
@@ -131,7 +132,6 @@ _gh_tail="$BUNDLE/tests/harness.x"
 # doctest).  GEN_HARNESS_OUT names the file to write.
 _gh_want_tail=${GEN_HARNESS_TAIL:-1}
 _gh_out=${GEN_HARNESS_OUT:-$BUNDLE/tests/lib/harness.gen.x}
-[ "$_gh_want_tail" = 0 ] || [ -f "$_gh_tail" ] || _gh_die "no $_gh_tail -- it holds what follows the boot: the bundle's imports and REPL printer"
 
 _gh_root="$("$X" --share-dir)"
 [ -n "$_gh_root" ] || _gh_die "$X --share-dir answered nothing"
@@ -187,7 +187,9 @@ mkdir -p "$(dirname "$_gh_out")"
 	printf '(import-path! "%s/lib")\n' "$BUNDLE"
 	printf '(def %%lang-lead "%s")\n' "$_gh_name"
 	if [ "$_gh_want_tail" != 0 ]; then
-		cat "$_gh_tail"
+	# A bundle with no tests/harness.x has no tail: its specs import
+	# what they use.
+		if [ -f "$_gh_tail" ]; then cat "$_gh_tail"; fi
 	# The harness is the platform the specs run on: the specs after it are
 	# the program, read into an environment of their own, so a name a spec
 	# defines shadows the library's and never reaches its modules.
