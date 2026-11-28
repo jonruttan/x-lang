@@ -37,6 +37,7 @@
 (import x/tui/style)
 (import x/tui/screen Screen screen-put! screen-fill! screen-row-cells screen-row!)
 (import x/protocol/str/str8 str-find-byte)
+(import x/sys/gc)
 
 (import x/core/doors char->int int& int* int+ int- int/ int< int= int| obj-make obj-ref obj-set! str-byte-len str-byte-ref str-byte-sub)
 (def %pg-cvt (prim-ref (lit convert) (lit to)))
@@ -69,11 +70,30 @@
 (def %pg-4th (fn (_ l) (first (rest (rest (rest l))))))
 (def %pg-5th (fn (_ l) (first (rest (rest (rest (rest l)))))))
 (def %pg-6th (fn (_ l) (first (rest (rest (rest (rest (rest l))))))))
-(def %pg-map (fn (self f l) (match ((eq? l ()) ()) (#t (pair (f (first l)) (self f (rest l)))))))
+; The walks over a list are tail calls, so a page's lines can be as many
+; as memory holds: a call left waiting a line ran out of stack near ten
+; thousand.
+(def %pg-map-onto (fn (self f l acc) (match ((eq? l ()) acc) (#t (self f (rest l) (pair (f (first l)) acc))))))
+(def %pg-map (fn (_ f l) (%pg-rev (%pg-map-onto f l ()))))
 (def %pg-each (fn (self f l) (match ((eq? l ()) ()) (#t (do (f (first l)) (self f (rest l)))))))
-(def %pg-len (fn (self l) (match ((eq? l ()) 0) (#t (int+ 1 (self (rest l)))))))
+(def %pg-len-from (fn (self l n) (match ((eq? l ()) n) (#t (self (rest l) (int+ n 1))))))
+(def %pg-len (fn (_ l) (%pg-len-from l 0)))
 (def %pg-rev (fn (_ l) (%pg-onto l ())))
 (def %pg-onto (fn (self l acc) (match ((eq? l ()) acc) (#t (self (rest l) (pair (first l) acc))))))
+
+; No collect runs by itself (x/sys/gc), and a line laid out leaves 20 to
+; 40 KB of frames behind it, measured on short lines of text: 12,000 left
+; 450 MB, a collect of it 0.5 s.  A collect each 1,024 lines a step of
+; the layout makes keeps a long page's garbage to tens of MB: 12,000 lines
+; took 2.1 s and 650 MB with it, 1.5 s and 1,070 MB without.  Collecting
+; when the heap's objects had doubled was slower (2.4 s): a line's garbage
+; far outweighs what it leaves live, so the heap doubles between any two
+; asks, and (Heap count) walks the heap to answer.
+(def %pg-made 0)
+(def %pg-tidy!
+  (fn (_ n)
+    (set! %pg-made (int+ %pg-made n))
+    (match ((int< 1023 %pg-made) (do (Heap collect) (set! %pg-made 0))) (#t ()))))
 (def %pg-append (fn (_ a b) (%pg-onto (%pg-rev a) b)))
 (def %pg-repeat (fn (self s n) (match ((int< n 1) "") (#t (%str-concat (list s (self s (int+ n -1))))))))
 
@@ -267,7 +287,7 @@
     ((fn (_ ls) (match ((match ((eq? ls ()) #f) (#t (str=? (first (%pg-rev ls)) "")))
                          (%pg-rev (rest (%pg-rev ls))))
                         (#t ls)))
-     (%pg-map (fn (_ l) (%pg-expand l 0 0 ())) (Str8 split "\n" text)))))
+     (%pg-map (fn (_ l) (%pg-tidy! 1) (%pg-expand l 0 0 ())) (Str8 split "\n" text)))))
 
 ; Text lines as page lines, each broken where it runs past WIDTH; OUT last
 ; first.
@@ -275,15 +295,16 @@
   (fn (self ls width out)
     (match
       ((eq? ls ()) (%pg-rev out))
-      (#t ((fn (_ s)
-             ((fn (_ e)
-                (match
-                  ((int= e (str-byte-len s)) (self (rest ls) width (pair (list (list s 0 ())) out)))
-                  (#t (self (pair (str-byte-sub s e (int+ (str-byte-len s) (int- 0 e))) (rest ls)) width
-                            (pair (list (list (str-byte-sub s 0 e) 0 ())) out)))))
-              ((fn (_ e) (match ((match ((int= e 0) (int< 0 (str-byte-len s))) (#t #f)) (utf8-width s 0)) (#t e)))
-               (%pg-fit s 0 width))))
-           (first ls))))))
+      (#t (do (%pg-tidy! 1)
+            ((fn (_ s)
+               ((fn (_ e)
+                  (match
+                    ((int= e (str-byte-len s)) (self (rest ls) width (pair (list (list s 0 ())) out)))
+                    (#t (self (pair (str-byte-sub s e (int+ (str-byte-len s) (int- 0 e))) (rest ls)) width
+                              (pair (list (list (str-byte-sub s 0 e) 0 ())) out)))))
+                ((fn (_ e) (match ((match ((int= e 0) (int< 0 (str-byte-len s))) (#t #f)) (utf8-width s 0)) (#t e)))
+                 (%pg-fit s 0 width))))
+             (first ls)))))))
 
 ; --- blocks to lines -------------------------------------------------------
 ; LINES with FIRST's runs before the first and REST's before the others.
@@ -438,9 +459,10 @@
   (fn (self blocks width depth tight links)
     ((fn (go bs out)
        (match ((eq? bs ()) (%pg-rev out))
-              (#t (go (rest bs)
-                      (%pg-onto (%pg-block (first bs) width depth links)
-                                (match ((match ((eq? out ()) #t) (#t tight)) out) (#t (pair () out))))))))
+              (#t ((fn (_ lines)
+                     (%pg-tidy! (%pg-len lines))
+                     (go (rest bs) (%pg-onto lines (match ((match ((eq? out ()) #t) (#t tight)) out) (#t (pair () out))))))
+                   (%pg-block (first bs) width depth links)))))
      blocks ())))
 
 ; --- pages -----------------------------------------------------------------
@@ -474,6 +496,7 @@
                                 (walk (rest runs) (int+ col w)))
                               (first runs) (text-width (first (first runs)))))))
                 (match ((%pg-linked? (%pg-at lv i)) (%pg-at lv i)) (#t ())) 0)
+               (%pg-tidy! 1)
                (go (int+ i 1))))
          (#t ())))
      0)

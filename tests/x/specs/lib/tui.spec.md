@@ -143,6 +143,17 @@ On the last row, where the cells end, and on a row above a wide character the ne
 ---
     (3 "a  b    c" "" "d")
 
+### a page of many thousand lines is laid out, text or blocks: no walk over its lines waits a call a line
+
+```x
+(do (import x/tui/page)
+  (def t (Page text (Str8 join "" (List map (fn (_ i) (Str8 append (%number->str i) "\n")) (List range 0 12000))) 80))
+  (def m (Page markdown (List map (fn (_ i) (list 'paragraph (list (%number->str i)))) (List range 0 6000)) 80))
+  (list (Page count t) (Page line-text t 11999) (Page count m) (Page line-text m 11998)))
+```
+---
+    (12000 "11999" 11999 "5999")
+
 ## Window and Tabs
 
 ### links selected in turn scroll into view; the bar lists the tabs
@@ -192,6 +203,65 @@ select of one selects none, and the page lays out, scrolls and draws.
 ```
 ---
     (319 320 ("/home" () ()) (1 3 1 () 1 () () () 319 314 () 317 314 0 () 5) ("[logo]" "" "para 1 l1" "" "para 2 l2") #f #t)
+
+## Panes
+
+### a screen pasted on another is clipped at its edges, a wide character cut by either blanked
+
+```x
+(do (import x/tui/screen)
+  (def s (Screen make 3 6))
+  (Screen put s 0 0 "中中中" 0)
+  (Screen put s 1 0 "abcdef" 0)
+  (def p (Screen make 2 4))
+  (Screen put p 0 0 "xy" 0)
+  (Screen put p 1 0 "z中w" 0)
+  (Screen paste s 0 1 p)
+  (def q (Screen make 1 4))
+  (Screen put q 0 0 "ab中" 0)
+  (Screen paste s 2 3 q)
+  (Screen paste s 5 0 q) (Screen paste s 0 9 q) (Screen paste s 0 -1 q)
+  (list (Screen row-text s 0) (Screen row-text s 1) (Screen row-text s 2)))
+```
+---
+    (" xy   " "az中wf" "   ab ")
+
+### a side takes the width it wants up to a quarter of the columns, none under 8; the focus goes only to a shown pane
+
+```x
+(do (import x/tui/panes)
+  (def p (Panes make))
+  (def a (Panes columns p 80))
+  (Panes toggle! p 'left) (Panes show! p 'right #t) (Panes width! p 'right 12)
+  (def b (Panes columns p 80))
+  (def c (Panes columns p 30))
+  (def f (list (Panes focus-next! p) (Panes focus-next! p) (Panes focus-next! p) (Panes focus-next! p)))
+  (Panes show! p 'right #f)
+  (list a b c f (Panes focus p) (Panes focus! p 'right) (Panes focus! p 'left) (Panes columns p 80)))
+```
+---
+    ((('main 0 80)) (('left 0 19) ('main 20 47) ('right 68 12)) (('main 0 30)) ('right 'left 'main 'right) 'main 'main 'left (('left 0 19) ('main 20 60)))
+
+### each pane is drawn on a screen of its own, kept while its size is, with a bar beside it bold when its side has the focus
+
+```x
+(do (import x/tui/panes) (import x/tui/screen)
+  (def s (Screen make 3 40))
+  (def p (Panes make))
+  (Panes show! p 'left #t) (Panes show! p 'right #t) (Panes width! p 'left 8)
+  (Panes focus! p 'right)
+  (Panes draw p s 1 2
+    (fn (_ pane sub) (Screen put sub 0 0 (match ((eq? pane 'left) "left side") ((eq? pane 'main) "main") (#t "right")) 0)))
+  (def first-draw (List map (fn (_ r) (Screen row-text s r)) (list 0 1 2)))
+  (def bars (list (Screen style-at s 1 8) (Screen style-at s 1 30)))
+  (Panes draw p s 1 2 (fn (_ pane sub) ()))
+  (def kept (Screen row-text s 1))
+  (Panes width! p 'left 10)
+  (Panes draw p s 1 2 (fn (_ pane sub) ()))
+  (list first-draw bars kept (Screen row-text s 1)))
+```
+---
+    (("                                        " "left sid│main                 │right    " "        │                     │         ") (0 1) "left sid│main                 │right    " "         │                    │right    ")
 
 ## Picture
 

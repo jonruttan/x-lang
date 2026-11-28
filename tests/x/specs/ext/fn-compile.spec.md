@@ -107,6 +107,40 @@ the rewrite cannot carry leaves F interpreted, with the reason on the entry.
 ---
     (#t ('lt 7 3 #f #t))
 
+### an integer door hands an operand that is not an integer to its type, as the interpreter does
+
+int+ int- int* int/ int% int< and int= of two operands call the handler an
+operand's type registers, so a bigint operand answers a bigint.  bigint.x's
+own mixed paths end that way, (int- acc x) with acc a bigint.
+
+```x
+(import x/num/bigint)
+(import x/core/doors int/ int<<)
+(def %fc-big-env (Module env (lit x/num/bigint)))
+; The largest integer a word holds, and one past it, a bigint, on any word.
+(def %fc-int-max (int- (int<< 1 (int- (int* 8 %word-size) 1)) 1))
+(def %fc-big (+ %fc-int-max 1))
+(def %fc-big-before (list (- %fc-big 8) (+ %fc-big 8) (* %fc-big 3)))
+(compile-fn! (lit %big-sub2) (eval (lit %big-sub2) %fc-big-env))
+(compile-fn! (lit %big-add2) (eval (lit %big-add2) %fc-big-env))
+(compile-fn! (lit %big-mul2) (eval (lit %big-mul2) %fc-big-env))
+(def %fc-doors
+  (fn (_ a b)
+    (list (int+ (int* a 2) (int- b 1)) (int< a b) (int= a a) (if (int< b a) (lit yes) (lit no)))))
+(def %fc-doors-all (fn (_) (list (%fc-doors 3 10) (%fc-doors %fc-big 5) (%fc-doors 7 %fc-big))))
+(def %fc-doors-before (%fc-doors-all))
+(def %fc-e (compile-fn! (lit %fc-doors) %fc-doors))
+(write (list (%fc-e state)
+             (equal? %fc-big-before (list (- %fc-big 8) (+ %fc-big 8) (* %fc-big 3)))
+             (= (- %fc-big 8) (int- %fc-int-max 7))
+             (= (/ (- %fc-big 8) 10) (int/ (int- %fc-int-max 7) 10))
+             (equal? %fc-doors-before (%fc-doors-all))
+             (= (first (%fc-doors %fc-big 5)) (+ (+ %fc-big %fc-big) 4))
+             (rest (%fc-doors %fc-big 5))))
+```
+---
+    ('compiled #t #t #t #t #t (#f #t 'yes))
+
 ### + - < > <= >= = on two integers answer as the interpreter does
 
 Bound at the root, each of these runs on the operands' raw words when both

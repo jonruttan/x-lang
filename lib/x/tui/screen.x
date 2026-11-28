@@ -23,7 +23,8 @@
 ; screen-put! and screen-fill! are (Screen put) and (Screen fill)
 ; for the tui modules, without the class send; screen-row-cells and
 ; screen-row! copy a row's cells out and back, for a page that draws a
-; line once and puts it back on the next frame.
+; line once and puts it back on the next frame; screen-paste! copies a
+; screen onto another at a row and column, for a pane drawn on its own.
 
 (module x/tui/screen)
 
@@ -182,6 +183,34 @@
         (do (ptr-set! (%sc-dirty s) r 1 1)
             (mem-copy (%sc-ptr (%sc-cells s) (%sc-off (%sc-get s 1) r 0)) (str->ptr cells) (int* 8 (%sc-get s 1)))))
       (#t ()))))
+
+; FROM's cells put on S from row R and column C, clipped at S's edges.  Per
+; row the columns that fit are copied in one call; half of a wide character
+; of S outside them is blanked first, and a wide character of FROM cut at
+; S's right edge leaves a blank.
+(def %sc-paste-row!
+  (fn (_ s r c from k n)
+    (def p (%sc-cells s))
+    (def base (%sc-off (%sc-get s 1) r 0))
+    (def q (%sc-cells from))
+    (def fo (%sc-off (%sc-get from 1) k 0))
+    (%sc-split! p base (%sc-get s 1) c (int+ c n))
+    (mem-copy (%sc-ptr p (int+ base (int* 8 c))) (%sc-ptr q fo) (int* 8 n))
+    (match ((match ((int< n (%sc-get from 1)) (= (%sc-cp q (int+ fo (int* 8 n))) 0)) (#t #f))
+             ((fn (_ o) (%sc-set! p o 32 (%sc-style p o))) (int+ base (int* 8 (int+ c (int+ n -1))))))
+           (#t ()))
+    (ptr-set! (%sc-dirty s) r 1 1)))
+(def screen-paste!
+  (fn (_ s r c from)
+    (def n (match ((int< (int- (%sc-get s 1) c) (%sc-get from 1)) (int- (%sc-get s 1) c)) (#t (%sc-get from 1))))
+    (match ((match ((int< c 0) #f) (#t (int< 0 n)))
+             ((fn (go k)
+                (match ((int< k (%sc-get from 0))
+                         (do (match ((%sc-in? s (int+ r k) c) (%sc-paste-row! s (int+ r k) c from k n)) (#t ()))
+                             (go (int+ k 1))))
+                       (#t ())))
+              0))
+           (#t ()))))
 
 ; --- rendering -------------------------------------------------------------
 ; Writers into the render buffer B at I: each answers the I after.
@@ -449,6 +478,12 @@
       (doc "The style of the cell at ROW and COL."
         (returns INTEGER "A style")
         (example "(Screen style-at (Screen make 1 1) 0 0)" "0"))
-      (%sc-style (%sc-cells screen) (%sc-off (%sc-get screen 1) row col)))))
+      (%sc-style (%sc-cells screen) (%sc-off (%sc-get screen 1) row col)))
+    (method paste (self (param screen VECTOR "A screen") (param row INTEGER "Row, from 0")
+                        (param col INTEGER "Column, from 0") (param from VECTOR "The screen to copy"))
+      (doc "Copy FROM's cells onto SCREEN with FROM's first cell at ROW and COL, clipped at SCREEN's edges: for a pane drawn on a screen of its own. Half of a wide character of SCREEN outside the copy is blanked, and so is a wide character of FROM cut at the right edge."
+        (returns ANY "nil")
+        (example "(Screen row-text (do (def s (Screen make 1 6)) (def p (Screen make 1 2)) (Screen put p 0 0 \"ab\" 0) (Screen paste s 0 3 p) s) 0)" "\"   ab \""))
+      (screen-paste! screen row col from))))
 
-(provide x/tui/screen Screen screen-put! screen-fill! screen-row-cells screen-row!)
+(provide x/tui/screen Screen screen-put! screen-fill! screen-row-cells screen-row! screen-paste!)
