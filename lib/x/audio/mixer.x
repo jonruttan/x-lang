@@ -915,7 +915,8 @@
 ; pitch (note "C4") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut
 ; PCT), (filter (MS PCT) ...), (pan -100..100), (gain PCT), (detune
 ; CENTS), (width (MS PCT) ...), (cutoff (MS HZ) ...), (res PCT), (pass
-; MODE ...), (ring CENTS), (sync CENTS), (at MS).  A bend is the pitch's path,
+; MODE ...), (ring CENTS), (sync CENTS), (at MS).  A detune moves the
+; pitch any number of cents, a whole octave exactly.  A bend is the pitch's path,
 ; CENTS from it at each MS, in straight lines between and a jump where two
 ; points share an MS; with one, the slide is not used.  A filter is the
 ; low-pass's path the same way, PCT of its cut at each MS, and its cut
@@ -951,10 +952,12 @@
     (def pitch (%prop1 spec (lit note) ()))
     (def mhz (if (null? pitch) (int* 1000 (%prop1 spec (lit hz) 440)) (%note-mhz pitch)))
     (def moved (fn (_ s) (if (int= cents 0) s (%shift s cents))))
-    (def base (%detune (step mhz) (%prop1 spec (lit detune) 0)))
+    (def detune (%prop1 spec (lit detune) 0))
+    (def tuned (fn (_ s) (if (int= detune 0) s (%shift s detune))))
+    (def base (tuned (step mhz)))
     (def st (moved base))
     (def slide (%prop1 spec (lit slide) ()))
-    (def st1 (if (null? slide) st (moved (%detune (step (%pitch-mhz slide)) (%prop1 spec (lit detune) 0)))))
+    (def st1 (if (null? slide) st (moved (tuned (step (%pitch-mhz slide))))))
     (def bend (List map (fn (_ p) (pair (%ms (first p) rate) (moved (%shift base (first (rest p))))))
                         (%prop spec (lit bend) ())))
     (def cut (%prop1 spec (lit cut) 100))
@@ -1591,7 +1594,7 @@
                         (param specs LIST "Voices, each a list of (KEY ...): (wave NAME), (env (MS PCT) ...), (note \"C4\") or (hz N), (slide PITCH), (bend (MS CENTS) ...), (cut PCT), (filter (MS PCT) ...), (width (MS PCT) ...), (cutoff (MS HZ) ...), (res PCT), (pass MODE ...), (ring CENTS), (sync CENTS), (pan -100..100), (gain PCT), (detune CENTS), (at MS)")
                         (param at INTEGER "Frames after the start of the stretch being rendered, 0 at once")
                         (param gain INTEGER "Percent of each voice's own gain"))
-      (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A width is the wave less itself PCT of a cycle on, halved, following its points the same way: a saw with a width is a pulse high for PCT of the cycle, and a width that moves is a pulse sweep. A cutoff is a resonant filter after the low-pass, its cutoff in hertz following its points the same way, RES 0 to 100 its resonance, and its pass the outputs let through: low, band, high, or any of them together (low and high a notch), low unless it names them. A ring or a sync is a modulator CENTS from the pitch, moved by the detune and the mixer's pitch but not the bend: a ring turns the wave over while the modulator is in the second half of its cycle (on a triangle, a ring modulator), and a sync starts the wave's cycle again each time the modulator's ends, so a bend under a sync sweeps its harmonics; with both, the sync's CENTS place it. A voice with no wave is a sine; with no envelope, a 200 ms fade; a pulse is the saw at width 50 unless it has its own width."
+      (doc "Start a sound: each voice plays its envelope from AT, its pitch sliding to its slide's over the envelope, or following its bend (CENTS from its pitch at each MS, straight between, a jump where two points share an MS), and ends at the envelope's last point. A width is the wave less itself PCT of a cycle on, halved, following its points the same way: a saw with a width is a pulse high for PCT of the cycle, and a width that moves is a pulse sweep. A cutoff is a resonant filter after the low-pass, its cutoff in hertz following its points the same way, RES 0 to 100 its resonance, and its pass the outputs let through: low, band, high, or any of them together (low and high a notch), low unless it names them. A ring or a sync is a modulator CENTS from the pitch, moved by the detune and the mixer's pitch but not the bend: a ring turns the wave over while the modulator is in the second half of its cycle (on a triangle, a ring modulator), and a sync starts the wave's cycle again each time the modulator's ends, so a bend under a sync sweeps its harmonics; with both, the sync's CENTS place it. A detune moves the pitch any number of cents, a whole octave exactly. A voice with no wave is a sine; with no envelope, a 200 ms fade; a pulse is the saw at width 50 unless it has its own width."
         (returns VECTOR "The mixer")
         (sample "(Mixer play! m (list (list (list (lit note) \"A4\") (list (lit env) (list 0 0) (list 5 80) (list 300 0)))) 0 100)" "m")
         (sample "(Mixer play! m (list (list (list (lit wave) (lit pulse)) (list (lit note) \"A3\") (list (lit width) (list 0 12) (list 400 50)) (list (lit env) (list 0 80) (list 400 0)))) 0 100)" "m"))
