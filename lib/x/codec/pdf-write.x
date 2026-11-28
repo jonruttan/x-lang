@@ -4,8 +4,7 @@
 ; tree (x/codec/document) on US Letter pages: headings in bold at six sizes,
 ; paragraphs broken at spaces to the page's width and set ragged right,
 ; code in Courier, quotes and list items indented, a rule for a thematic
-; break, a table's rows a line each, its cells parted by bars, and a new
-; page when one is full.
+; break, a table as a ruled grid, and a new page when one is full.
 ;
 ; The fonts are five of the standard fourteen, which a reader of PDF has
 ; and a file need not carry: Helvetica, its bold, its oblique and its bold
@@ -23,7 +22,7 @@
 ;
 ; The file is plain: its content streams are not compressed, and the only
 ; bytes past ASCII are text's.  Not yet here: a link's title, images,
-; tables as grids, other page sizes and fonts, and justified text.
+; other page sizes and fonts, and justified text.
 
 (module x/codec/pdf-write)
 (import x/type/class)
@@ -345,20 +344,116 @@
                   (#t (List reverse (pair l acc)))))
          line ()))
       ((fn (_ ls) (match ((null? ls) ()) ((str=? (List last ls) "") (List init ls)) (#t ls))) (Str8 split "\n" text)))))
-; A table's rows as paragraphs, a row's cells parted by " | ", a header
-; row's strong.
-(def %pw-table-rows
-  (fn (_ b)
-    ((fn (self rows head)
-       (match ((null? rows) ())
-              (#t (pair (list (lit paragraph)
-                              ((fn (_ inl) (match (head (list (list (lit strong) inl))) (#t inl)))
-                               (List flat-map (fn (_ c) c)
-                                 ((fn (join cs) (match ((null? cs) ()) ((null? (rest cs)) (list (first cs)))
-                                                       (#t (pair (first cs) (pair (list " | ") (join (rest cs)))))))
-                                  (first rows)))))
-                        (self (rest rows) #f)))))
-     (List ref 3 b) (List ref 1 b))))
+; --- tables -----------------------------------------------------------------
+; A cell's text is set PAD in from its column's edges and VPAD below and
+; above its row's rules, its lines LEADING apart.
+(def %pw-pad 4000)
+(def %pw-vpad 3000)
+(def %pw-leading 13000)
+(def %pw-max (fn (_ a b) (match ((int< a b) b) (#t a))))
+; The Nth of L, or nil past its end.
+(def %pw-nth (fn (self n l) (match ((null? l) ()) ((int= n 0) (first l)) (#t (self (int- n 1) (rest l))))))
+; How wide LINE, a list of chunks, is, in thousandths of the size.
+(def %pw-line-width
+  (fn (_ line)
+    ((fn (self l prev w)
+       (match ((null? l) w)
+              (#t (self (rest l) (first l)
+                        (int+ w (int+ (%pw-chunk-width (first l)) (match ((null? prev) 0) (#t (%pw-space prev)))))))))
+     line () 0)))
+; How wide CHUNKS are set on lines broken only where they break.
+(def %pw-natural
+  (fn (_ chunks)
+    (List fold (fn (_ m line) (%pw-max m (%pw-line-width line))) 0 (%pw-lines chunks 1000000000))))
+; The columns' widths from their natural widths NATS within ROOM: each its
+; natural width when all fit, else a column narrower than an even share
+; keeps its own and the rest share what is left evenly.
+(def %pw-columns
+  (fn (_ nats room)
+    (def total (List fold (fn (_ t w) (int+ t w)) 0 nats))
+    (match
+      ((int< total (int+ room 1)) nats)
+      (#t ((fn (self kept)
+             (def left (List fold (fn (_ t w) (int+ t w)) 0 (List map (fn (_ k) (match ((first k) (rest k)) (#t 0))) kept)))
+             (def free (List length (List filter (fn (_ k) (not (first k))) kept)))
+             (def share (%pw-max 20000 (int/ (int- room left) (%pw-max free 1))))
+             (def next (List map (fn (_ k) (pair (match ((first k) #t) ((int< share (rest k)) #f) (#t #t)) (rest k))) kept))
+             (match ((int= (List length (List filter (fn (_ k) (first k)) next)) (List length (List filter (fn (_ k) (first k)) kept)))
+                      (List map (fn (_ k) (match ((first k) (rest k)) (#t share))) kept))
+                    (#t (self next))))
+           (List map (fn (_ w) (pair #f w)) nats))))))
+; A rule LINE points wide from (X1, Y1) to (X2, Y2).
+(def %pw-rule
+  (fn (_ line x1 y1 x2 y2)
+    (Str8 append line " w " (%pw-number x1) " " (%pw-number y1) " m " (%pw-number x2) " " (%pw-number y2) " l S\n")))
+; Set the lines LS of a cell from AT, its column ROOM wide and aligned as
+; ALIGN says, the first line's baseline at BASE.
+(def %pw-cell!
+  (fn (self s ls at room align base)
+    (unless (null? ls)
+      ((fn (_ x)
+         (%pw-put! s (%pw-show (first ls) x base %pw-body))
+         (obj-set! s 4 (List append (List reverse (%pw-annotations (first ls) x base %pw-body)) (obj-ref s 4))))
+       (int+ at ((fn (_ wide)
+                   (match ((eq? align (lit right)) (%pw-max 0 (int- room wide)))
+                          ((eq? align (lit center)) (%pw-max 0 (int/ (int- room wide) 2)))
+                          (#t 0)))
+                 (int* %pw-body (%pw-line-width (first ls))))))
+      (self s (rest ls) at room align (int- base %pw-leading)))))
+; Set a table's row of cells, each its chunks, in columns WIDTHS wide from
+; the left EDGES, each column aligned as ALIGNS says; HEAD? for a header
+; row, which has a heavier rule under it.
+(def %pw-row!
+  (fn (_ s cells widths edges aligns head?)
+    (def cols (List length widths))
+    (def lines (List map (fn (_ i) (%pw-lines (%pw-nth i cells) (int/ (List ref i widths) %pw-body))) (List range 0 cols)))
+    (def n (%pw-max 1 (List fold (fn (_ m ls) (%pw-max m (List length ls))) 0 lines)))
+    (def high (int+ (int* 2 %pw-vpad) (int+ (int* %pw-body 1000) (int* (int- n 1) %pw-leading))))
+    (%pw-need! s high)
+    (def top (%pw-y s))
+    (def bottom (int- top high))
+    (def left (first edges))
+    (def right (List last edges))
+    (List for-each
+      (fn (_ i)
+        (%pw-cell! s (List ref i lines) (int+ (List ref i edges) %pw-pad) (List ref i widths) (%pw-nth i aligns)
+                   (int- (int- top %pw-vpad) (int* %pw-body 800))))
+      (List range 0 cols))
+    (%pw-put! s (Str8 append (%pw-rule "0.5" left top right top)
+                             (%pw-rule (match (head? "1.5") (#t "0.5")) left bottom right bottom)
+                             (%str-concat (List map (fn (_ e) (%pw-rule "0.5" e top e bottom)) edges))))
+    (obj-set! s 1 bottom)))
+; Set the table B from the left edge X: its columns as wide as their
+; widest cells, or sharing the page's width when they would pass it, a
+; cell's text broken to its column and aligned as the column is, a header
+; row bold with a heavier rule under it, every cell ruled round.  A row
+; that does not fit on the page begins the next.
+(def %pw-table!
+  (fn (_ s b x)
+    (def size %pw-body)
+    (def head? (List ref 1 b))
+    (def aligns (List ref 2 b))
+    (def rows
+      ((fn (self l k)
+         (match ((null? l) ())
+                (#t (pair (List map (fn (_ c) (%pw-chunks c (match ((match (head? (int= k 0)) (#t #f)) 1) (#t 0)))) (first l))
+                          (self (rest l) (int+ k 1))))))
+       (List ref 3 b) 0))
+    (def cols (List fold (fn (_ m row) (%pw-max m (List length row))) 0 rows))
+    (def widths
+      (%pw-columns
+        (List map (fn (_ i) (List fold (fn (_ m row) (%pw-max m (int* size (%pw-natural (%pw-nth i row))))) 0 rows))
+                  (List range 0 cols))
+        (int- (int- (int- %pw-width %pw-margin) x) (int* cols (int* 2 %pw-pad)))))
+    ; The columns' left edges, then the table's right edge.
+    (def edges
+      ((fn (self ws at) (match ((null? ws) (list at)) (#t (pair at (self (rest ws) (int+ at (int+ (first ws) (int* 2 %pw-pad))))))))
+       widths x))
+    ((fn (self l k)
+       (unless (null? l)
+         (%pw-row! s (first l) widths edges aligns (match (head? (int= k 0)) (#t #f)))
+         (self (rest l) (int+ k 1))))
+     rows 0)))
 ; Set BLOCKS from the left edge X.  TIGHT? leaves less after a paragraph.
 (def %pw-blocks!
   (fn (blocks! s blocks x tight?)
@@ -385,7 +480,7 @@
                      (%pw-code-lines (List ref 2 b) (int/ (int- (int- %pw-width %pw-margin) x) 5400)))
                    (%pw-down! s 7000)))
              ((eq? kind (lit block-quote)) (blocks! s (List ref 1 b) (int+ x %pw-indent) tight?))
-             ((eq? kind (lit table)) (do (blocks! s (%pw-table-rows b) x #t) (%pw-down! s 5000)))
+             ((eq? kind (lit table)) (do (%pw-table! s b x) (%pw-down! s 9000)))
              ((eq? kind (lit list))
                (do ((fn (self items n)
                       (unless (null? items)
@@ -475,7 +570,7 @@
   (static
     (method bytes (self (param blocks LIST "A document's blocks")
                         . (param title STRING "Optionally the document's title, for the file's /Info"))
-      (doc "The bytes of a PDF that sets the blocks: headings bold at a size for each level, paragraphs broken at spaces and set ragged right, emph oblique and strong bold, code and code blocks in Courier, quotes and list items indented, a rule for a thematic break, a new page when one is full. Text is WinAnsiEncoding, a character outside it a question mark. A link is its text under a link annotation that goes to its destination; an image is its alternative text, a field its value; raw HTML is left out."
+      (doc "The bytes of a PDF that sets the blocks: headings bold at a size for each level, paragraphs broken at spaces and set ragged right, emph oblique and strong bold, code and code blocks in Courier, quotes and list items indented, a rule for a thematic break, a table as a grid of ruled cells (columns as wide as their widest cell or sharing the page, a cell aligned as its column, a header row bold), a new page when one is full. Text is WinAnsiEncoding, a character outside it a question mark. A link is its text under a link annotation that goes to its destination; an image is its alternative text, a field its value; raw HTML is left out."
         (returns LIST "(BUF START LENGTH): the file")
         (example "(do (import x/codec/pdf-text) (def r (PdfWrite bytes (list (list 'heading 1 (list \"Hi\")) (list 'paragraph (list \"a \" (list 'strong (list \"b\")) \" c\"))) \"T\")) (list (PdfText title (first r) (List ref 2 r)) (PdfText parse (first r) (List ref 2 r))))" "(\"T\" (('heading 1 (\"Hi\")) ('paragraph (\"a \" ('strong (\"b\")) \" c\"))))"))
       (def s (%pw-state))
