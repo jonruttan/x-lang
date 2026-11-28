@@ -45,7 +45,11 @@
 ; was sent plays at the stream's rate from when it was sent.
 ;
 ; Messages to the page are text, a word and its arguments, or binary, a tag
-; byte then data: F and the RGBA bytes, A and a stream number then samples.
+; byte then data: F and the RGBA bytes, R and a run of rows (the first and
+; the count, four big-endian bytes each, then their RGBA bytes), A and a
+; stream number then samples.  A page is sent the whole frame first, then
+; only the runs of rows that differ from what it has.  An engine without
+; the foreign door sends the whole frame each time.
 ; Messages from the page are an event's words: "key-down 97 1 0", or
 ; "density 2", the screen's pixels to the page's, which is kept.  The
 ; mouse's places are in the picture's pixels, mapped through the canvas's
@@ -65,7 +69,7 @@
 (import x/codec/bytes)
 (import x/codec/sha1)
 (import x/codec/base64)
-(import x/core/doors char->int int% int/ ptr-set! str->ptr str-byte-ref str-make)
+(import x/core/doors char->int ffi-dlopen ffi-dlsym int% int/ int->ptr ptr->int ptr-call ptr-set! str->ptr str-byte-ref str-make)
 
 (def-class Web ()
   (doc "A window in a browser tab: Sdl's messages answered by a page that shows an RGBA picture on a canvas, plays signed 16-bit sound through Web Audio, and sends keys, the mouse and gamepad input back over a WebSocket."
@@ -101,7 +105,8 @@ function play(id,buf){var s=streams[id];if(!s||!ac||ac.state!='running')return;v
 var ab=ac.createBuffer(s.chans,n,s.rate);for(var ch=0;ch<s.chans;ch++){var d=ab.getChannelData(ch);for(var i=0;i<n;i++)d[i]=pcm[i*s.chans+ch]/32768;}
 var src=ac.createBufferSource();src.buffer=ab;src.connect(ac.destination);var t=Math.max(s.next,ac.currentTime+0.05);src.start(t);s.next=t+ab.duration;s.nodes.push(src);
 src.onended=function(){var i=s.nodes.indexOf(src);if(i>=0)s.nodes.splice(i,1);};}
-function data(buf){var b=new Uint8Array(buf);if(b[0]==70){if(img&&b.length>=1+W*H*4){img.data.set(b.subarray(1,1+W*H*4));g.putImageData(img,0,0);}}else if(b[0]==65)play(b[1],buf);}
+function data(buf){var b=new Uint8Array(buf),v=new DataView(buf);if(b[0]==70){if(img&&b.length>=1+W*H*4){img.data.set(b.subarray(1,1+W*H*4));g.putImageData(img,0,0);}}
+else if(b[0]==82){var y=v.getUint32(1),n=v.getUint32(5);if(img&&y+n<=H&&b.length>=9+n*W*4){img.data.set(b.subarray(9,9+n*W*4),y*W*4);g.putImageData(img,0,0,0,y,W,n);}}else if(b[0]==65)play(b[1],buf);}
 function connect(){ws=new WebSocket('ws://'+location.host+'/socket');ws.binaryType='arraybuffer';ws.onopen=function(){told=0;dens();};
 ws.onmessage=function(e){if(typeof e.data=='string')control(e.data.split(' '));else data(e.data);};
 ws.onclose=function(){ws=null;setTimeout(connect,1000);};}
@@ -202,7 +207,7 @@ connect();requestAnimationFrame(padLoop);
         ((eq? field (lit w)) 2) ((eq? field (lit h)) 3) ((eq? field (lit title)) 4)
         ((eq? field (lit unread)) 5) ((eq? field (lit events)) 6) ((eq? field (lit frame)) 7)
         ((eq? field (lit scaling)) 8) ((eq? field (lit fullscreen)) 9) ((eq? field (lit streams)) 10)
-        ((eq? field (lit density)) 11)
+        ((eq? field (lit density)) 11) ((eq? field (lit sent)) 12)
         (#t (Err raise (lit value) "Web: no such field" field))))
 
     (method %window (self)
@@ -222,7 +227,7 @@ connect();requestAnimationFrame(padLoop);
         (Err raise (lit state) "Web open: a window is open already" ()))
       (def where (first (Web %listen-cell)))
       (def lfd (Socket tcp-listen-on (first where) (List ref 1 where)))
-      (def win (Vector make 12 ()))
+      (def win (Vector make 13 ()))
       (Vector set! 0 lfd win)
       (Web %set! win (lit w) w)
       (Web %set! win (lit h) h)
@@ -353,14 +358,15 @@ connect();requestAnimationFrame(padLoop);
       (unless (null? page)
         (do (Socket close page)
             (Web %set! win (lit page) ())
-            (Web %set! win (lit unread) ())))
+            (Web %set! win (lit unread) ())
+            (Web %set! win (lit sent) ())))
       ())
 
     ; --- WebSocket frames (RFC 6455).  Frames to the page are whole and
     ; unmasked; frames from it are masked.
     (method %send! (self (param win VECTOR "A window from open") (param op INTEGER "The opcode: 1 text, 2 binary, 8 close")
                          (param head STRING "The payload's first bytes") (param head-n INTEGER "How many")
-                         (param body ANY "The rest of the payload, or nil") (param body-n INTEGER "How many bytes of body"))
+                         (param body ANY "The rest of the payload, a STRING or a POINTER, or nil") (param body-n INTEGER "How many bytes of body"))
       (doc "Send one frame to the page, if there is one; a page that has gone is dropped."
         (returns ANY "nil")
         (sample "(Web %send! win 1 \"hi\" 2 () 0)" "nil"))
@@ -529,6 +535,7 @@ connect();requestAnimationFrame(padLoop);
       (Web %set! win (lit w) w)
       (Web %set! win (lit h) h)
       (Web %set! win (lit frame) ())
+      (Web %set! win (lit sent) ())
       (Web %serve! win)
       (Web %tell! win (Str8 append "size " (Str8 str w) " " (Str8 str h)))
       win)
@@ -548,14 +555,62 @@ connect();requestAnimationFrame(padLoop);
       win)
 
     (method present! (self (param win VECTOR "A window from open"))
-      (doc "Send the frame drawn last to the page."
+      (doc "Send the frame drawn last to the page: whole to a page new to it, else the runs of rows that changed."
         (returns VECTOR "The window")
         (sample "(Web present! win)" "win"))
       (Web %serve! win)
       (def frame (Web %ref win (lit frame)))
-      (unless (null? frame)
-        (Web %send! win 2 "F" 1 frame (* 4 (Web %ref win (lit w)) (Web %ref win (lit h)))))
+      (unless (if (null? frame) #t (null? (Web %ref win (lit page))))
+        (do (def row (* 4 (Web %ref win (lit w))))
+            (def h (Web %ref win (lit h)))
+            (def sent (Web %ref win (lit sent)))
+            (def libc (Web %libc))
+            (if (if (null? sent) #t (null? libc))
+              (do (Web %send! win 2 "F" 1 frame (* row h))
+                  (unless (null? libc)
+                    (Web %set! win (lit sent) (Web %copied frame (* row h) libc))))
+              (Web %send-rows! win frame sent row h libc))))
       win)
+
+    (method %libc (self)
+      (doc "libc's memcmp and memcpy, by the foreign door, or nil on an engine without one."
+        (returns ANY "(memcmp . memcpy), or nil")
+        (sample "(Web %libc)" "(memcmp . memcpy)"))
+      (guard (_ ())
+        ((fn (_ lib) (pair (ffi-dlsym lib "memcmp") (ffi-dlsym lib "memcpy"))) (ffi-dlopen () 1))))
+
+    (method %copied (self (param frame STRING "A frame") (param n INTEGER "Its bytes") (param libc PAIR "From %libc"))
+      (doc "A copy of the frame's n bytes."
+        (returns STRING "The copy")
+        (sample "(Web %copied frame 8 (Web %libc))" "a fresh 8-byte copy"))
+      (def out (str-make n))
+      (ptr-call (rest libc) (str->ptr out) (str->ptr frame) n)
+      out)
+
+    (method %send-rows! (self (param win VECTOR "A window from open") (param frame STRING "The frame drawn")
+                              (param sent STRING "The frame as the page has it") (param row INTEGER "A row's bytes")
+                              (param h INTEGER "Rows") (param libc PAIR "From %libc"))
+      (doc "Send the page each run of rows that differs from what it has, as R, the first row and the count as four big-endian bytes each, then the rows; sent is brought up to date."
+        (returns ANY "nil")
+        (sample "(Web %send-rows! win frame sent 8 2 (Web %libc))" "nil"))
+      (def fp (ptr->int (str->ptr frame)))
+      (def sp (ptr->int (str->ptr sent)))
+      (def alike? (fn (_ y) (= 0 (ptr-call (first libc) (int->ptr (+ fp (* y row))) (int->ptr (+ sp (* y row))) row))))
+      (def head (str-make 9))
+      (def send! (fn (_ y n)
+                   (def hp (str->ptr head))
+                   (ptr-set! hp 0 82 1)
+                   (Web %put-be! hp 1 y 4)
+                   (Web %put-be! hp 5 n 4)
+                   (ptr-call (rest libc) (int->ptr (+ sp (* y row))) (int->ptr (+ fp (* y row))) (* n row))
+                   (Web %send! win 2 head 9 (int->ptr (+ fp (* y row))) (* n row))))
+      (let go ((y 0) (from -1))
+        (match
+          ((= y h) (when (< -1 from) (send! from (- y from))))
+          ((alike? y) (do (when (< -1 from) (send! from (- y from))) (go (+ y 1) -1)))
+          ((< from 0) (go (+ y 1) y))
+          (#t (go (+ y 1) from))))
+      ())
 
     (method show! (self (param win VECTOR "A window from open")
                         (param buf STRING "An RGBA buffer the window's size"))
