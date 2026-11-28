@@ -193,6 +193,28 @@ select of one selects none, and the page lays out, scrolls and draws.
 ---
     (319 320 ("/home" () ()) (1 3 1 () 1 () () () 319 314 () 317 314 0 () 5) ("[logo]" "" "para 1 l1" "" "para 2 l2") #f #t)
 
+## Screen paste
+
+### a screen pasted on another is clipped at its edges, a wide character cut by either blanked
+
+```x
+(do (import x/tui/screen)
+  (def s (Screen make 3 6))
+  (Screen put s 0 0 "中中中" 0)
+  (Screen put s 1 0 "abcdef" 0)
+  (def p (Screen make 2 4))
+  (Screen put p 0 0 "xy" 0)
+  (Screen put p 1 0 "z中w" 0)
+  (Screen paste s 0 1 p)
+  (def q (Screen make 1 4))
+  (Screen put q 0 0 "ab中" 0)
+  (Screen paste s 2 3 q)
+  (Screen paste s 5 0 q) (Screen paste s 0 9 q) (Screen paste s 0 -1 q)
+  (list (Screen row-text s 0) (Screen row-text s 1) (Screen row-text s 2)))
+```
+---
+    (" xy   " "az中wf" "   ab ")
+
 ## Picture
 
 ### an image is fitted to the cells it is given, its shape kept, never grown
