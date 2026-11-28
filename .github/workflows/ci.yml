@@ -168,6 +168,12 @@ jobs:
       - name: Vulkan software device
         if: runner.os == 'Linux'
         run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libvulkan1 mesa-vulkan-drivers
+      # The specs pass on a host with no device, by design, so a device that
+      # failed to open would go unseen: this step names the device and fails
+      # where there is none.
+      - name: Vulkan device
+        if: runner.os == 'Linux'
+        run: sh x.sh -q -c '(import x/sys/vulkan)' -c '(if (Vulkan available?) (do (display (Vulkan device-name)) (newline)) (Err raise (lit io) "no Vulkan device on this runner" ()))'
       # THE STATE IMAGES THE SUITE BOOTS FROM, cached across runs.  Writing
       # all 29 costs about three minutes (2026-09-06, the three JIT dialects
       # among them), more than images save a run, so a miss pays once and a
