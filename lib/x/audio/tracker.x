@@ -59,7 +59,7 @@
 (module x/audio/tracker)
 
 (import x/audio/mixer)
-(import x/core/doors int* int+ int- int/ int% int< int= obj-make obj-ref obj-set! str-byte-len str-byte-ref str->sym char->int)
+(import x/core/doors int* int+ int- int/ int% int< int= obj-make obj-ref obj-set! obj-same? str-byte-len str-byte-ref str->sym char->int)
 
 (def %fail (fn (_ what) (Err raise (lit value) (Str8 append "Tracker: " what) ())))
 
@@ -307,7 +307,8 @@
           instruments patterns order ticks
           lets named-effects
           (if named-effects #t (if named-cells #t (List any? (fn (_ i) (List ref 5 (rest i))) instruments)))
-          (if (null? rate) () (%fraction (rest rate) "tick-rate")))))
+          (if (null? rate) () (%fraction (rest rate) "tick-rate"))
+          (List map (fn (_ p) (pair (first p) (%pattern-times (rest p)))) patterns))))
 
 (def %s-bpm (fn (_ s) (List ref 1 s)))
 (def %s-rows (fn (_ s) (List ref 2 s)))
@@ -321,6 +322,7 @@
 (def %s-named-effects (fn (_ s) (List ref 10 s)))
 (def %s-named (fn (_ s) (List ref 11 s)))
 (def %s-rate (fn (_ s) (List ref 12 s)))
+(def %s-times (fn (_ s) (List ref 13 s)))
 
 ; --- Trackers --------------------------------------------------------------
 ;
@@ -411,15 +413,33 @@
 
 (def %time-letters (list "m" "k" "h"))
 
-; The time effects of row ROW of pattern P, each channel's in turn.
-(def %row-times
-  (fn (_ p row)
+; The time effects of the row FRONTS start at, FRONTS each channel's
+; cells from that row on, each channel's in turn.
+(def %front-times
+  (fn (_ fronts)
     (List flat-map
-      (fn (_ ch)
-        ((fn (_ cs) (if (null? cs) ()
-                      (List filter (fn (_ e) (List any? (fn (_ l) (str=? l (first e))) %time-letters)) (List ref 3 (first cs)))))
-         (List drop row (rest ch))))
-      p)))
+      (fn (_ cs) (if (null? cs) ()
+                   (List filter (fn (_ e) (List any? (fn (_ l) (str=? l (first e))) %time-letters)) (List ref 3 (first cs)))))
+      fronts)))
+
+; Pattern P's time effects, a row each, each channel's in turn: read once,
+; when the song is made, the channels' cells walked a row at a time.
+(def %pattern-times
+  (fn (_ p)
+    (def n (%pattern-rows p))
+    (Vector from-list
+      ((fn (self k fronts acc)
+         (if (int< k n)
+           (self (int+ k 1) (List map (fn (_ cs) (if (null? cs) () (rest cs))) fronts) (pair (%front-times fronts) acc))
+           (List reverse acc)))
+       0 (List map rest p) ()))))
+
+; The time effects of row ROW of the pattern playing in T.
+(def %row-times
+  (fn (_ t row)
+    (def s (%get t %t-song))
+    ((fn (_ v) (if (int< row (Vector length v)) (Vector ref row v) ()))
+     (rest (Assoc entry (List ref (%get t %t-at) (%s-order s)) (%s-times s))))))
 
 ; TIME after a row's time effects ES: an m sets the rate, a k the ticks.
 (def %time-after
@@ -437,22 +457,24 @@
   (fn (_ es)
     (List fold (fn (_ n e) (if (str=? (first e) "h") (if (null? (rest e)) 1 (first (rest e))) n)) 0 es)))
 
-; The ticks row ROW of pattern P lasts at TIME, its hold counted.
-(def %row-ticks (fn (_ p row time) (int* (rest time) (int+ 1 (%hold (%row-times p row))))))
+; The ticks a row of time effects ES lasts at TIME, its hold counted.
+(def %row-ticks (fn (_ es time) (int* (rest time) (int+ 1 (%hold es)))))
 
-; The ms from the start of row ROW of pattern P to the start of each of
-; the H rows after it, from its own 0, (0 MS ...): row ROW at the time now,
-; each after it at the time its effects give.
+; The ms from the start of row ROW of the pattern playing in T to the
+; start of each of the H rows after it, from its own 0, (0 MS ...): row
+; ROW at the time now, each after it at the time its effects give.  The
+; ticks a second are worked out again only where an m changes them.
 (def %offsets
-  (fn (_ t p row h)
-    ((fn (self j time carry at acc)
+  (fn (_ t row h)
+    ((fn (self j time key r carry at acc)
        (if (int< j h)
-         (do (def tm (if (int= j 0) time (%time-after time (%row-times p (int+ row j)))))
-             (def r (%rate t (first tm)))
-             (def d (%count r (%row-ticks p (int+ row j) tm) 1000 (%part carry r)))
-             (self (int+ j 1) tm (pair (first r) (rest d)) (int+ at (first d)) (pair (int+ at (first d)) acc)))
+         (do (def es (%row-times t (int+ row j)))
+             (def tm (if (int= j 0) time (%time-after time es)))
+             (def r1 (if (obj-same? key (first tm)) r (%rate t (first tm))))
+             (def d (%count r1 (%row-ticks es tm) 1000 (%part carry r1)))
+             (self (int+ j 1) tm (first tm) r1 (pair (first r1) (rest d)) (int+ at (first d)) (pair (int+ at (first d)) acc)))
          (List reverse acc)))
-     0 (pair (%get t %t-rate) (%get t %t-ticks)) (pair 0 0) 0 (list 0))))
+     0 (pair (%get t %t-rate) (%get t %t-ticks)) (lit none) () (pair 0 0) 0 (list 0))))
 
 ; A row's length in ms at the time now, its hold not counted.
 (def %row-ms
@@ -818,7 +840,7 @@
           (when (eq? (first (first cells)) (lit note))
             (do (def inst (%instrument-now (rest (Assoc entry (first ch) (%s-instruments s))) env))
                 (def w (%weight (List ref 4 inst) tension))
-                (unless (int= w 0) (%note! t m ci cells (%offsets t p row (%held (rest cells) 1)) tick inst w env)))))
+                (unless (int= w 0) (%note! t m ci cells (%offsets t row (%held (rest cells) 1)) tick inst w env)))))
         (int+ ci 1))
       0 p)))
 
@@ -852,7 +874,8 @@
         (do (def p (%pattern-now t))
             (def rows (%pattern-rows p))
             (def row (%get t %t-row))
-            (def time (%time-after (pair (%get t %t-rate) (%get t %t-ticks)) (%row-times p row)))
+            (def es (%row-times t row))
+            (def time (%time-after (pair (%get t %t-rate) (%get t %t-ticks)) es))
             (%put! t %t-rate (first time))
             (%put! t %t-ticks (rest time))
             (when (if (%s-named-effects (%get t %t-song))
@@ -860,7 +883,7 @@
               (%effects! t m))
             (%play-row! t m row)
             (def r (%rate t (first time)))
-            (def due (%count r (%row-ticks p row time) (Mixer rate m) (%part (%get t %t-carry) r)))
+            (def due (%count r (%row-ticks es time) (Mixer rate m) (%part (%get t %t-carry) r)))
             (%put! t %t-carry (pair (first r) (rest due)))
             (if (int< (int+ row 1) rows)
               (%put! t %t-row (int+ row 1))
