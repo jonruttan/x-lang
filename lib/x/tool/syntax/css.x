@@ -26,12 +26,14 @@
 (def %sxc-contexts
   (list (list (lit dq) 34 92 ()) (list (lit sq) 39 92 ())))
 
+; a space, a tab, a carriage return, a newline and a form feed
+(def %sxc-blanks (list 32 9 13 10 12))
 (def %sxc-ident (list (pair 48 57) (pair 65 90) (pair 97 122) 95 45 92 (pair 128 255) (pair -128 -1)))
 (def %sxc-word (list (pair 48 57) (pair 65 90) (pair 97 122) 95 45 92 46 35 58 37 33 (pair 128 255) (pair -128 -1)))
 
 (def %sxc-rules
   (fn (_)
-    (list (Lexer run (lit blank) " \t\r\n\f" " \t\r\n\f")
+    (list (Lexer run (lit blank) %sxc-blanks %sxc-blanks)
           (Lexer until (lit comment) "/*" "*/" (lit to-end))
           (Lexer nested (lit string) "\"" (lit dq) %sxc-contexts (lit to-end))
           (Lexer nested (lit string) "'" (lit sq) %sxc-contexts (lit to-end))

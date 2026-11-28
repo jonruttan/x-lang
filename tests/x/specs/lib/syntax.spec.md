@@ -494,7 +494,7 @@ A bundle row is one with a root; the registered grammars and x-lang's own have n
 
 ## x-lang's own grammars
 
-x-lang ships JSON's, Markdown's and HTML's grammars in its library, rows in
+x-lang ships grammars for formats no bundle owns in its library, rows in
 the catalogue with a module and no root.
 
 ### they are in the catalogue and found by file name
@@ -621,3 +621,69 @@ A < before a byte that starts no tag is text.
 ```
 ---
     ((0 21 'keyword) (22 1 'punct) (23 3 'keyword) (27 7 'name) (34 1 'punct) (35 3 'string) (38 1 'punct) (39 1 'punct) (40 6 'keyword) (46 1 'punct) (48 1 'punct) (49 1 'keyword) (50 1 'punct) (51 1 'punct) (52 2 'punct) (54 6 'keyword) (60 1 'punct) (61 1 'punct) (62 2 'keyword) (64 1 'punct) (65 1 'punct) (66 2 'punct) (68 3 'keyword) (71 1 'punct))
+
+### the third set is found by file name, by whole name and by #! line
+
+```x
+(do (import x/tool/syntax)
+  (def name (fn (_ f) (let ((g (Syntax for-file f))) (if (null? g) () (g name)))))
+  (list (List map name (list "lib.rs" "a.js" "m.mjs" "c.cjs" "t.csv" "t.tsv" "ls.1" "x.8" "a.man" "Containerfile" "Dockerfile" "w.dockerfile" "x/Containerfile"))
+        ((Syntax for-file "build" "#!/usr/bin/env node\n") name)))
+```
+---
+    (('rust 'javascript 'javascript 'javascript 'csv 'tsv 'roff 'roff 'roff 'containerfile 'containerfile 'containerfile 'containerfile) 'javascript)
+
+### Rust: attributes, lifetimes, characters, macros, raw strings and suffixed numbers
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'rust) spans "#[derive(Debug)]\nfn f<'a>(s: &'a str) -> Option<u8> {\n    // c\n    let c = b'x'; let d = '\\n';\n    println!(\"{}\", r#\"a\"b\"#);\n    0x1F_u8 + 1_000 /* k */\n}"))
+```
+---
+    ((0 16 'keyword) (17 2 'keyword) (21 1 'operator) (22 2 'class) (24 1 'operator) (25 1 'punct) (27 1 'operator) (29 1 'operator) (30 2 'class) (33 3 'class) (36 1 'punct) (38 2 'operator) (41 6 'class) (47 1 'operator) (48 2 'class) (50 1 'operator) (52 1 'punct) (58 4 'comment) (67 3 'keyword) (73 1 'operator) (76 3 'char) (79 1 'punct) (81 3 'keyword) (87 1 'operator) (89 4 'char) (93 1 'punct) (99 7 'name) (106 1 'operator) (107 1 'punct) (108 4 'string) (112 1 'punct) (114 8 'string) (122 1 'punct) (123 1 'punct) (129 7 'number) (137 1 'operator) (139 5 'number) (145 7 'comment) (153 1 'punct))
+
+### JavaScript: a / divides after an operand and opens a regular expression elsewhere
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'javascript) spans "#!/usr/bin/env node\nconst r = /a\\/[/]b/g, x = this.n / 2;\nlet s = `t ${f(`u`)} v` // c\nclass A { #p = null; }\nx = a/b;"))
+```
+---
+    ((0 19 'comment) (20 5 'keyword) (28 1 'operator) (30 9 'string) (40 1 'punct) (44 1 'operator) (46 4 'keyword) (53 1 'operator) (55 1 'number) (56 1 'punct) (58 3 'keyword) (64 1 'operator) (66 15 'string) (82 4 'comment) (87 5 'keyword) (93 1 'class) (95 1 'punct) (97 2 'private) (100 1 'operator) (102 4 'constant) (106 1 'punct) (108 1 'punct) (112 1 'operator) (115 1 'operator) (117 1 'punct))
+
+### CSV and TSV: a colour a column, quoted fields holding separators and quotes
+
+```x
+(do (import x/tool/syntax)
+  (list ((Syntax named 'csv) spans "id,name,,n\r\n1,\"a, \"\"b\"\"\",x,2\n")
+        ((Syntax named 'tsv) spans "a\tb\tc\n")))
+```
+---
+    (((0 2 'name) (2 1 'punct) (3 4 'string) (7 1 'punct) (8 1 'punct) (9 1 'keyword) (12 1 'name) (13 1 'punct) (14 10 'string) (24 1 'punct) (25 1 'number) (26 1 'punct) (27 1 'keyword)) ((0 1 'name) (1 1 'punct) (2 1 'string) (3 1 'punct) (4 1 'number)))
+
+### roff: requests, quoted arguments, escapes and comments
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'roff) spans ".\\\" c\n.TH X 1 \"2026\"\n\\fBx\\fR \\(em \\*[R] \\s-2y\\s0 \\w'ab' z \\\" n\n. B a\n"))
+```
+---
+    ((0 1 'keyword) (1 4 'comment) (6 3 'keyword) (14 6 'string) (21 3 'escape) (25 3 'escape) (29 4 'escape) (34 5 'escape) (40 4 'escape) (45 3 'escape) (49 6 'escape) (58 4 'comment) (63 3 'keyword))
+
+### Containerfile: instructions in any case, FROM's AS, flags, JSON forms, variables
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'containerfile) spans "# syntax=x\nfrom alpine:3 AS b\nCOPY --from=b [\"/a\", \"/b\"]\nRUN echo \"$HOME\" ${X} as \\\n  && true\n"))
+```
+---
+    ((0 10 'comment) (11 4 'keyword) (25 2 'keyword) (30 4 'keyword) (35 6 'constant) (44 1 'punct) (45 4 'string) (49 1 'punct) (51 4 'string) (55 1 'punct) (57 3 'keyword) (66 7 'string) (74 4 'name) (82 1 'operator))
+
+### CSS: a word after a blank keeps its first byte
+
+```x
+(do (import x/tool/syntax)
+  ((Syntax named 'css) spans "p { font-family: f }"))
+```
+---
+    ((2 1 'punct) (4 11 'name) (15 1 'punct) (19 1 'punct))

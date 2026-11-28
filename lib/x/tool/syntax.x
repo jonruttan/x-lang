@@ -429,7 +429,13 @@
         (grammar yaml (module x/tool/syntax/yaml) (files ".yaml" ".yml"))
         (grammar toml (module x/tool/syntax/toml) (files ".toml"))
         (grammar ini (module x/tool/syntax/toml) (files ".ini" ".cfg"))
-        (grammar diff (module x/tool/syntax/diff) (files ".diff" ".patch")))))
+        (grammar diff (module x/tool/syntax/diff) (files ".diff" ".patch"))
+        (grammar rust (module x/tool/syntax/rust) (files ".rs"))
+        (grammar javascript (module x/tool/syntax/javascript) (files ".js" ".mjs" ".cjs") (interpreters "node"))
+        (grammar csv (module x/tool/syntax/csv) (files ".csv"))
+        (grammar tsv (module x/tool/syntax/csv) (files ".tsv"))
+        (grammar roff (module x/tool/syntax/roff) (files ".1" ".2" ".3" ".4" ".5" ".6" ".7" ".8" ".9" ".man" ".mdoc" ".roff" ".ms" ".me" ".mm" ".tr"))
+        (grammar containerfile (module x/tool/syntax/containerfile) (files ".containerfile" ".dockerfile") (names "Containerfile" "Dockerfile")))))
 
 (def %sx-warn
   (fn (_ parts)
@@ -907,7 +913,7 @@
       g)
 
     (method named (self (param name SYMBOL "A grammar's name"))
-      (doc "The grammar of that name: a registered one, else one a bundle's bundle.xon declares or x-lang ships (json, markdown, html, xml, css, yaml, toml, ini, diff), its module loaded now; nil for none."
+      (doc "The grammar of that name: a registered one, else one a bundle's bundle.xon declares or x-lang ships (json, markdown, html, xml, css, yaml, toml, ini, diff, rust, javascript, csv, tsv, roff, containerfile), its module loaded now; nil for none."
         (returns Syntax "The grammar, or nil")
         (example "(eq? (Syntax named 'x) (Syntax x))" "#t"))
       (Syntax x)
