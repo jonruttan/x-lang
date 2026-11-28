@@ -1,10 +1,12 @@
 ; gpu.x -- Gpu: Tensor arithmetic run on the host's GPU.
 ;
 ; Gpu is the front the numeric library sends GPU work through.  It names
-; no system: it asks the backends it knows for one that is available, and
-; today there is one, x/sys/darwin/metal.  A second backend answers the
-; same messages as Metal -- buffer, pointer, compile, run, release -- and
-; brings its own kernel source.
+; no system: it asks the backends it knows for one that is available,
+; x/sys/darwin/metal on macOS and x/sys/vulkan elsewhere.  A backend
+; answers the same messages -- available?, buffer, pointer, run, release,
+; and %kernel, %step and %run-steps -- and a kernel is a grid form
+; (x/tool/grid-form), written once, which each backend turns into what its
+; device takes.
 ;
 ;   (Gpu available?)   -> #t when this host has a GPU a backend reaches
 ;   (Gpu hold t)       -> a copy of t, in f32, whose bytes the GPU holds
@@ -48,44 +50,41 @@
 (import x/num/tensor)
 (import x/num/matrix)
 (import x/sys/darwin/metal)
+(import x/sys/vulkan)
 (import x/core/doors image-transient! int* int+ int->ptr int< int= mem-copy obj-ref ptr->int ptr-ref ptr-set!)
 
 (def-class Gpu ()
-  (doc "Tensor arithmetic run on the host's GPU, in f32, through whichever backend is available: Metal on macOS."
+  (doc "Tensor arithmetic run on the host's GPU, in f32, through whichever backend is available: Metal on macOS, Vulkan elsewhere."
     (note "A GPU sums in single precision, so a result can differ in its last bits from the same operation by Tensor's kernels cast to f32.")
     (note "A held tensor's bytes are in a buffer the GPU shares: product reads and answers held tensors with no copy. Only (Gpu release t) gives a buffer back.")
     (note "On a host with no GPU, hold and product raise a label 'io: ask available? first.")
     (example "(boolean? (Gpu available?))" "#t")
     (see available?) (see hold) (see product))
   (static
-    ; The product's kernel in the Metal Shading Language.  dims holds the
-    ; inner length m and the result's columns k, then each operand's
-    ; offset and its strides along its two axes, in elements: an operand is
-    ; read through them where it lies, a view as well as a whole buffer.
-    ; The grid is k across and the result's rows down.
-    (%product-source "#include <metal_stdlib>
-using namespace metal;
-kernel void product(device const float* a [[buffer(0)]],
-                    device const float* b [[buffer(1)]],
-                    device float* c [[buffer(2)]],
-                    device const uint* dims [[buffer(3)]],
-                    uint2 at [[thread_position_in_grid]]) {
-  uint m = dims[0], k = dims[1];
-  uint ao = dims[2] + at.y * dims[3], as = dims[4];
-  uint bo = dims[5] + at.x * dims[7], bs = dims[6];
-  float sum = 0.0f;
-  for (uint j = 0; j < m; j++) sum += a[ao + j * as] * b[bo + j * bs];
-  c[at.y * k + at.x] = sum;
-}")
+    ; The product's kernel, a grid form.  dims holds the inner length m and
+    ; the result's columns k, then each operand's offset and its strides
+    ; along its two axes, in elements: an operand is read through them
+    ; where it lies, a view as well as a whole buffer.  The grid is k
+    ; across and the result's rows down.
+    (%product-form
+      (lit (fn (_ a b c dims)
+             (let ((m (i32-ref dims 0)) (k (i32-ref dims 1))
+                   (ao (+ (i32-ref dims 2) (* at-y (i32-ref dims 3)))) (as (i32-ref dims 4))
+                   (bo (+ (i32-ref dims 5) (* at-x (i32-ref dims 7)))) (bs (i32-ref dims 6)))
+               (f32-set! c (+ (* at-y k) at-x)
+                 (let sum ((j 0) (s (i->f 0)))
+                   (if (< j m)
+                     (sum (+ j 1) (f+ s (f* (f32-ref a (+ ao (* j as))) (f32-ref b (+ bo (* j bs))))))
+                     s)))))))
 
     ; The compiled kernels by name, ((NAME . PIPELINE) ...).
     (%pipelines-cell (pair () ()))
 
     (method %backend (self)
       (doc "The backend class in use, or nil when this host has no GPU one reaches."
-        (returns ANY "Metal where it is available, else nil")
+        (returns ANY "Metal where it is available, else Vulkan where that is, else nil")
         (sample "(Gpu %backend)" "Metal on an Apple silicon Mac"))
-      (if (Metal available?) Metal ()))
+      (match ((Metal available?) Metal) ((Vulkan available?) Vulkan) (#t ())))
 
     (method %need-backend (self)
       (doc "The backend class in use; raises a label 'io when this host has none."
@@ -98,13 +97,13 @@ kernel void product(device const float* a [[buffer(0)]],
 
     (method %pipeline (self (param backend ANY "The backend class")
                             (param name SYMBOL "The kernel's name")
-                            (param source STRING "Its source"))
+                            (param form LIST "Its grid form"))
       (doc "The kernel compiled, kept after the first time it is asked for."
-        (returns LIST "The backend's pipeline")
-        (sample "(Gpu %pipeline Metal (lit product) (Gpu %product-source))" "a pipeline"))
+        (returns ANY "The backend's pipeline")
+        (sample "(Gpu %pipeline Metal (lit product) (Gpu %product-form))" "a pipeline"))
       (def kept (Assoc entry name (first (Gpu %pipelines-cell))))
       (if (null? kept)
-        (let ((made (backend compile source (symbol->str name))))
+        (let ((made (backend %kernel form (symbol->str name))))
           (%set-first! (Gpu %pipelines-cell) (pair (pair name made) (first (Gpu %pipelines-cell))))
           made)
         (rest kept)))
@@ -113,7 +112,9 @@ kernel void product(device const float* a [[buffer(0)]],
       (doc "Release every kept kernel; each is compiled again when next wanted. Sent before a state image is written."
         (returns ANY "nil")
         (sample "(Gpu %forget!)" "nil"))
-      (List for-each (fn (_ e) (Metal release (rest e))) (first (Gpu %pipelines-cell)))
+      (if (null? (first (Gpu %pipelines-cell))) ()
+        (let ((backend (Gpu %need-backend)))
+          (List for-each (fn (_ e) (backend release (rest e))) (first (Gpu %pipelines-cell)))))
       (%set-first! (Gpu %pipelines-cell) ())
       ())
 
@@ -134,7 +135,7 @@ kernel void product(device const float* a [[buffer(0)]],
     (method %in-buffer (self (param backend ANY "The backend class")
                              (param st LIST "A contiguous f32 state"))
       (doc "A fresh buffer holding a copy of the state's elements, in row-major order."
-        (returns INTEGER "The buffer, of at least 4 bytes")
+        (returns ANY "The backend's buffer, of at least 4 bytes")
         (sample "(Gpu %in-buffer Metal (Gpu %f32 t))" "a buffer"))
       (let ((f (Tensor %fast)))
         (let ((bytes (int* 4 ((obj-ref f 1) (List ref 1 st)))))
@@ -156,7 +157,7 @@ kernel void product(device const float* a [[buffer(0)]],
 
     (method available? (self)
       (doc "Whether this host has a GPU a backend reaches."
-        (returns BOOL "#t on an Apple silicon Mac")
+        (returns BOOL "#t on an Apple silicon Mac, and where Vulkan reaches a device")
         (sample "(Gpu available?)" "#t on an Apple silicon Mac"))
       (not (null? (Gpu %backend))))
 
@@ -252,7 +253,7 @@ kernel void product(device const float* a [[buffer(0)]],
         (sample "(Gpu %plan-run plan)" "nil"))
       (if (List ref 4 plan) ()
         (let ((backend (Gpu %need-backend)))
-          (backend run (Gpu %pipeline backend (lit product) (Gpu %product-source))
+          (backend run (Gpu %pipeline backend (lit product) (Gpu %product-form))
             (first plan) (List ref 1 plan) (List ref 2 plan)))))
 
     (method %plan-out (self (param plan LIST "A plan from %plan"))
@@ -270,21 +271,21 @@ kernel void product(device const float* a [[buffer(0)]],
     ; before it wrote.  %words is a buffer of 32-bit words, for a kernel's
     ; dimensions; %buffer-of is the buffer a held tensor's bytes are in.
     (method %step (self (param name SYMBOL "The kernel's name")
-                        (param source STRING "Its source")
-                        (param buffers LIST "The buffers it reads and writes, in the order of its buffer indexes")
+                        (param form LIST "Its grid form (x/tool/grid-form)")
+                        (param buffers LIST "The buffers it reads and writes, in the order of the form's parameters")
                         (param width INTEGER "The grid's points across, above 0")
                         (param height INTEGER "The grid's points down, above 0"))
       (doc "A run of the kernel, compiled the first time it is asked for, made ready to run with others."
         (returns LIST "The step")
-        (sample "(Gpu %step (lit double) source (list buf) 1024 1)" "a step"))
+        (sample "(Gpu %step (lit double) (lit (fn (_ a) (f32-set! a at-x (f+ (f32-ref a at-x) (f32-ref a at-x))))) (list buf) 1024 1)" "a step"))
       (let ((backend (Gpu %need-backend)))
-        (backend %step (Gpu %pipeline backend name source) buffers width height)))
+        (backend %step (Gpu %pipeline backend name form) buffers width height)))
 
     (method %plan-step (self (param plan LIST "A plan from %plan"))
       (doc "The plan's product as a step."
         (returns LIST "The step")
         (sample "(Gpu %plan-step plan)" "a step"))
-      (Gpu %step (lit product) (Gpu %product-source) (first plan) (List ref 1 plan) (List ref 2 plan)))
+      (Gpu %step (lit product) (Gpu %product-form) (first plan) (List ref 1 plan) (List ref 2 plan)))
 
     (method %steps-run (self (param steps LIST "Steps from %step, at least one"))
       (doc "Run the steps in order and wait for them all."
@@ -294,14 +295,14 @@ kernel void product(device const float* a [[buffer(0)]],
 
     (method %words (self (param values LIST "Integers from 0, each below 2 to the 32nd"))
       (doc "A buffer holding the values as 32-bit words, in order; give it back with %words-done."
-        (returns INTEGER "The buffer")
+        (returns ANY "The backend's buffer")
         (sample "(Gpu %words (list 768 3072))" "a buffer of two words"))
       (let ((backend (Gpu %need-backend)))
         (let ((buf (backend buffer (int* 4 (if (null? values) 1 (List length values))))))
           ((fn (go l i) (if (null? l) () (do (Gpu %word! buf i (first l)) (go (rest l) (int+ i 1))))) values 0)
           buf)))
 
-    (method %word! (self (param buf INTEGER "A buffer from %words")
+    (method %word! (self (param buf ANY "A buffer from %words")
                          (param i INTEGER "Which word")
                          (param value INTEGER "An integer from 0, below 2 to the 32nd"))
       (doc "Store a 32-bit word in a buffer of them."
@@ -310,14 +311,14 @@ kernel void product(device const float* a [[buffer(0)]],
       (ptr-set! ((Gpu %need-backend) pointer buf) (int* 4 i) value 4)
       ())
 
-    (method %word (self (param buf INTEGER "A buffer from %words")
+    (method %word (self (param buf ANY "A buffer from %words")
                         (param i INTEGER "Which word"))
       (doc "A 32-bit word of a buffer of them, as a kernel left it."
         (returns INTEGER "The word, from 0")
         (sample "(Gpu %word buf 0)" "7"))
       (ptr-ref ((Gpu %need-backend) pointer buf) (int* 4 i) 4))
 
-    (method %words-done (self (param buf INTEGER "A buffer from %words"))
+    (method %words-done (self (param buf ANY "A buffer from %words"))
       (doc "Give a buffer of words back."
         (returns ANY "nil")
         (sample "(Gpu %words-done buf)" "nil"))
@@ -325,7 +326,7 @@ kernel void product(device const float* a [[buffer(0)]],
 
     (method %buffer-of (self (param t Tensor "A held tensor"))
       (doc "The buffer a held tensor's bytes are in; raises a label 'state when they were given back."
-        (returns INTEGER "The buffer")
+        (returns ANY "The backend's buffer")
         (sample "(Gpu %buffer-of (Gpu hold t))" "a buffer"))
       (let ((st (t %st)))
         ((obj-ref (Tensor %fast) 18) st)
@@ -346,4 +347,4 @@ kernel void product(device const float* a [[buffer(0)]],
 
 (doc (provide x/num/gpu Gpu)
   (example "(boolean? (Gpu available?))" "#t")
-  "Gpu: Tensor arithmetic run on the host's GPU in f32, through Metal on macOS: tensors held in buffers the GPU shares, and the matrix product.")
+  "Gpu: Tensor arithmetic run on the host's GPU in f32, through Metal on macOS and Vulkan elsewhere: tensors held in buffers the GPU shares, and the matrix product.")

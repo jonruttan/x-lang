@@ -161,6 +161,13 @@ jobs:
           key: sdl3-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/dev/sdl3-install.sh') }}
       - name: SDL3
         run: sh tools/dev/sdl3-install.sh
+      # x/sys/vulkan's spec, and x/num/gpu's on Linux, run on a Vulkan device
+      # where the host has one.  The runners have no GPU: lavapipe is Mesa's
+      # software device, so the binding and the SPIR-V x writes are run here,
+      # on the processor.
+      - name: Vulkan software device
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libvulkan1 mesa-vulkan-drivers
       # THE STATE IMAGES THE SUITE BOOTS FROM, cached across runs.  Writing
       # all 29 costs about three minutes (2026-09-06, the three JIT dialects
       # among them), more than images save a run, so a miss pays once and a

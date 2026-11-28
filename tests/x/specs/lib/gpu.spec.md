@@ -1,7 +1,8 @@
 # Gpu: Tensor arithmetic on the host's GPU
 # @weight 2
 
-`Gpu` runs the matrix product on the GPU in f32, through Metal on macOS.
+`Gpu` runs the matrix product on the GPU in f32, through Metal on macOS
+and Vulkan elsewhere.
 Each case asks `(Gpu available?)` first and, on a host with no GPU,
 answers what the GPU would have: the file passes everywhere and tests the
 GPU where there is one. The numbers are small integers and halves, whose
@@ -265,8 +266,8 @@ nothing: the result is written where the first was.
 
 ### a caller's kernels run as steps, with a planned product among them
 
-A step is a run of a kernel over buffers the caller keeps, and a list of
-steps runs as one. Here a kernel doubles a held row, a planned product
+A step is a run of a kernel, a grid form, over buffers the caller keeps,
+and a list of steps runs as one. Here a kernel doubles a held row, a planned product
 multiplies it by the identity, and the kernel doubles the row again: the
 product saw the row doubled once.
 
@@ -274,10 +275,10 @@ product saw the row doubled once.
 (import x/num/gpu)
 (if (Gpu available?)
   (let ((a (Gpu hold (Matrix from '((1 2))))) (b (Gpu hold (Matrix from '((1 0) (0 1)))))
-        (source "#include <metal_stdlib>\nusing namespace metal;\nkernel void twice(device float* a [[buffer(0)]], device const uint* n [[buffer(1)]], uint2 at [[thread_position_in_grid]]) { if (at.x < n[0]) a[at.x] *= 2.0f; }")
+        (form (lit (fn (_ a n) (if (< at-x (i32-ref n 0)) (f32-set! a at-x (f+ (f32-ref a at-x) (f32-ref a at-x)))))))
         (count (Gpu %words (list 2))))
     (let ((plan (Gpu %plan a b)))
-      (let ((twice (Gpu %step (lit twice) source (list (Gpu %buffer-of a) count) 2 1)))
+      (let ((twice (Gpu %step (lit twice) form (list (Gpu %buffer-of a) count) 2 1)))
         (Gpu %steps-run (list twice (Gpu %plan-step plan) twice))
         (let ((r (list (a ->list) ((Gpu %plan-out plan) ->list))))
           (Gpu %plan-done plan #f)
@@ -299,9 +300,9 @@ into a third.
 ```x
 (import x/num/gpu)
 (if (Gpu available?)
-  (let ((source "#include <metal_stdlib>\nusing namespace metal;\nkernel void sum(device uint* w [[buffer(0)]], uint2 at [[thread_position_in_grid]]) { w[2] = w[0] + w[1]; }")
+  (let ((form (lit (fn (_ w) (i32-set! w 2 (+ (i32-ref w 0) (i32-ref w 1))))))
         (w (Gpu %words (list 40 2 0))))
-    (Gpu %steps-run (list (Gpu %step (lit sum) source (list w) 1 1)))
+    (Gpu %steps-run (list (Gpu %step (lit sum) form (list w) 1 1)))
     (let ((r (list (Gpu %word w 2) (Gpu %word w 0))))
       (Gpu %words-done w)
       r))
@@ -309,6 +310,77 @@ into a third.
 ```
 ---
     (42 40)
+
+### a team's members each take a share, and team-sum adds the shares up
+
+A kernel that names a team is run by one at each grid point. Here a point
+is a row of a 3 by 40 matrix: each member sums the elements at its own
+place and every team's width after it, and the first member writes the
+team's sum. A row is longer than a team, so a member has more than one
+element.
+
+```x
+(import x/num/float/literal)
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((a (Gpu hold (Matrix from (List map (fn (_ r) (List map (fn (_ c) (+ r 1)) (List range 0 40))) (List range 0 3)))))
+        (out (Gpu hold (Tensor from '(0 0 0))))
+        (form (lit (fn (_ a out n)
+                     (let ((w (i32-ref n 0)))
+                       (let ((sum (team-sum (let go ((j member) (s (i->f 0)))
+                                              (if (< j w) (go (+ j team) (f+ s (f32-ref a (+ (* at-x w) j)))) s)))))
+                         (if (= member 0) (f32-set! out at-x sum)))))))
+        (width (Gpu %words (list 40))))
+    (Gpu %steps-run (list (Gpu %step (lit rows) form (list (Gpu %buffer-of a) (Gpu %buffer-of out) width) 3 1)))
+    (let ((r (out ->list)))
+      (Gpu %words-done width)
+      (Gpu release a)
+      (Gpu release out)
+      r))
+  (lit (40.0 80.0 120.0)))
+```
+---
+    (40.0 80.0 120.0)
+
+### a loop's next values are worked out before any of its variables is set
+
+A loop called with one of its own variables as another's next value takes
+the value the variable had: here `was` follows `j` one step behind, and
+the last `was` is 3.
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((w (Gpu %words (list 0)))
+        (form (lit (fn (_ w) (i32-set! w 0 (let go ((j 0) (was 0)) (if (< j 4) (go (+ j 1) j) was)))))))
+    (Gpu %steps-run (list (Gpu %step (lit behind) form (list w) 1 1)))
+    (let ((r (Gpu %word w 0)))
+      (Gpu %words-done w)
+      r))
+  3)
+```
+---
+    3
+
+### a kernel over a grid more than one point down
+
+at-x is the point's place across and at-y its place down: here each
+element of a 3 by 2 matrix is written 10 times its row plus its column.
+
+```x
+(import x/num/float/literal)
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((a (Gpu hold (Matrix from '((0 0) (0 0) (0 0)))))
+        (form (lit (fn (_ a) (f32-set! a (+ (* at-y 2) at-x) (i->f (+ (* at-y 10) at-x)))))))
+    (Gpu %steps-run (list (Gpu %step (lit number) form (list (Gpu %buffer-of a)) 2 3)))
+    (let ((r (a ->list)))
+      (Gpu release a)
+      r))
+  (lit ((0.0 1.0) (10.0 11.0) (20.0 21.0))))
+```
+---
+    ((0.0 1.0) (10.0 11.0) (20.0 21.0))
 
 ### two ordinary operands answer an ordinary matrix
 

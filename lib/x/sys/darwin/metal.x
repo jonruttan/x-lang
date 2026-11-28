@@ -19,7 +19,9 @@
 ; writes it through its pointer with ptr ref and ptr set!, and a kernel
 ; reads and writes the same bytes, so nothing is copied either way.
 ;
-; A kernel is a function in the Metal Shading Language marked `kernel`.
+; A kernel is a grid form (x/tool/grid-form), which %kernel turns into the
+; Metal Shading Language, or a function written in that language marked
+; `kernel`, which compile takes as it stands.
 ; run binds the buffers to it in order, the first to [[buffer(0)]], and
 ; calls it once for each point of a WIDTH by HEIGHT grid; the kernel reads
 ; its point from a `uint2` parameter marked [[thread_position_in_grid]],
@@ -45,6 +47,7 @@
 (module x/sys/darwin/metal)
 (import x/type/class)
 (import x/core/list)
+(import x/tool/grid-form grid-form-plan grid-form-metal)
 (import x/core/doors ffi-dlopen ffi-dlsym image-transient! int+ int->ptr ptr->str ptr-call ptr-ref-word ptr-set-word! str->ptr str-make)
 
 ; The runtime's functions by name, ((NAME . POINTER) ...), and the
@@ -84,7 +87,7 @@
   (fn (_) (%set-first! %mt-fns ()) (%set-first! %mt-sels ()) (%set-first! %mt-device ())))
 
 (def-class Metal ()
-  (doc "Buffers the GPU and x share, and kernels compiled from Metal Shading Language source and run over them, through macOS's Metal framework loaded with dlopen."
+  (doc "Buffers the GPU and x share, and kernels compiled from grid forms or Metal Shading Language source and run over them, through macOS's Metal framework loaded with dlopen."
     (note "The module loads on any host; available? answers #f off macOS and on a Mac that is not arm64, and the other messages raise a label 'io there.")
     (note "A kernel's floats are 32-bit: the Metal Shading Language has no double.")
     (example "(boolean? (Metal available?))" "#t")
@@ -203,7 +206,7 @@
     (method compile (self (param source STRING "Metal Shading Language source")
                           (param name STRING "The kernel function to run"))
       (doc "Compile the source and answer a pipeline that runs its kernel NAME. Raises a label 'value with the compiler's message when the source does not compile, and when it has no kernel of that name."
-        (returns LIST "The pipeline; give it back with release")
+        (returns LIST "The pipeline, (STATE QUEUE THREADS): the compiled kernel, its command queue, and the threads across for each grid point, 1; give it back with release")
         (sample "(Metal compile \"kernel void k(device uint* a [[buffer(0)]], uint2 at [[thread_position_in_grid]]) { a[at.x] *= 2; }\" \"k\")" "a pipeline"))
       (def device (Metal %need-device))
       (def cell (str-make 8))
@@ -223,10 +226,20 @@
                                           function (str->ptr cell))))
                         (%mt-send function "release")
                         (if (= state 0) (Metal %error-text cell)
-                          (list state (%mt-send device "newCommandQueue")))))))))))
+                          (list state (%mt-send device "newCommandQueue") 1))))))))))
       (when (str? made)
         (Err raise (lit value) (Str8 append "Metal compile: " made) name))
       made)
+
+    (method %kernel (self (param form LIST "A grid form")
+                          (param name STRING "The kernel's name, any text"))
+      (doc "Compile a grid form and answer a pipeline that runs it: the form's parameters are its buffers, bound in order from index 0. A form that names a team runs 32 threads, a simdgroup, at each grid point. Raises a label 'value for a form that is not a grid form."
+        (returns LIST "The pipeline; give it back with release")
+        (sample "(Metal %kernel (lit (fn (_ a) (f32-set! a at-x (f* (f32-ref a at-x) (f32-ref a at-x))))) \"square\")" "a pipeline"))
+      (def plan (grid-form-plan form))
+      ; the function is named apart from the kernel, whose name need not be one Metal takes
+      (def made (Metal compile (grid-form-metal form "grid") "grid"))
+      (list (first made) (List ref 1 made) (if (List ref 4 plan) 32 1)))
 
     (method run (self (param pipeline LIST "A pipeline from compile")
                       (param buffers LIST "The buffers the kernel reads and writes, in the order of its buffer indexes")
@@ -250,7 +263,7 @@
             ; that leaves of the most a group may hold
             (def across (%mt-send state "threadExecutionWidth"))
             (def down (/ (%mt-send state "maxTotalThreadsPerThreadgroup") across))
-            (def grid (Metal %size width height))
+            (def grid (Metal %size (* width (List ref 2 pipeline)) height))
             (def group (Metal %size across down))
             (%mt-send encoder "dispatchThreads:threadsPerThreadgroup:" (str->ptr grid) (str->ptr group))
             (%mt-send encoder "endEncoding")
@@ -281,7 +294,8 @@
       (def state (first pipeline))
       (def across (%mt-send state "threadExecutionWidth"))
       (def down (/ (%mt-send state "maxTotalThreadsPerThreadgroup") across))
-      (list state (List ref 1 pipeline) buffers (Metal %size width height) (Metal %size across down)))
+      (list state (List ref 1 pipeline) buffers
+            (Metal %size (* width (List ref 2 pipeline)) height) (Metal %size across down)))
 
     (method %run-steps (self (param steps LIST "Steps from %step, at least one"))
       (doc "Run the steps' kernels in order in one command buffer, and wait until the GPU has finished them all. Raises a label 'io with Metal's message when the run fails."
@@ -326,10 +340,10 @@
         (returns ANY "nil")
         (sample "(Metal release buf)" "nil"))
       (if (pair? x)
-        (List for-each (fn (_ part) (%mt-send part "release")) x)
+        (do (%mt-send (first x) "release") (%mt-send (List ref 1 x) "release"))
         (%mt-send x "release"))
       ())))
 
 (doc (provide x/sys/darwin/metal Metal)
   (example "(boolean? (Metal available?))" "#t")
-  "Buffers shared with the GPU, and kernels compiled from Metal Shading Language source and run over them, through macOS's Metal framework over the dlopen FFI.")
+  "Buffers shared with the GPU, and kernels compiled from grid forms or Metal Shading Language source and run over them, through macOS's Metal framework over the dlopen FFI.")
