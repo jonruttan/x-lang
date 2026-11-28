@@ -490,19 +490,18 @@
 ; out, and a position's work is about 130 small steps.  Where the weights
 ; are held, generate makes the work for one position once (%tf-work) and
 ; runs it as one command buffer for each position (Gpu %steps-run): a
-; kernel for each kind of step, here in the Metal Shading Language, over
-; buffers made once.  The rows worked in are shared by every block, since
-; the steps run in order.
+; kernel for each kind of step, over buffers made once.  The rows worked
+; in are shared by every block, since the steps run in order.
 ;
 ;   embed    an id's row of the items plus its position's row
-;   layer    a row times a weight, plus a bias, each sum split over 32 threads
-;   norm     a row less its mean and over its deviation, times a gain, plus a bias, in one group
-;   gelu     a row's gelu, the tanh form, in place
-;   add      a row added into another
-;   store    a position's queries, keys and values written into the block's cache
-;   attend   the position's attention over the cache's rows up to it, a head a simdgroup
-;   score    the normed row times each row of the items, a row to a simdgroup
-;   best     the place of the greatest score, in one group
+;   layer    a row times a weight: a column's sum in 32 parts
+;   layer-store, layer-add, layer-gelu
+;            the parts added up with the bias, and the row written into the
+;            block's cache, added into the row, or its gelu taken
+;   norm     a row less its mean and over its deviation, times a gain, plus a bias, by one team
+;   attend   the position's attention over the cache's rows up to it, a head to a team
+;   score    the normed row times each row of the items, a row to a team
+;   best     the place of the greatest score: the greatest of each share, then of those
 ;
 ; The GPU works in single precision throughout, where the kernels of the
 ; general pass sum in double: a score differs in its last places between
@@ -513,203 +512,187 @@
 ; wanted: it works the position out, and answers the id picked or nil.
 ; RELEASE gives the buffers back.  A model keeps its work from one
 ; generate to the next (%tf-work-for), and release gives it back.
-; A layer's grid is a column a thread across and 32 down: the threads of
-; a column each sum a share of its products, neighbouring threads reading
-; neighbouring floats of a weight's row, and the first of them adds the
-; shares up.  Where a group is shorter than 32, each group down a column
-; sums the whole of it, and they write the same sum.
-(def %tf-layer-source "#include <metal_stdlib>
-using namespace metal;
-kernel void layer(device const float* a [[buffer(0)]],
-                  device const float* w [[buffer(1)]],
-                  device const float* bias [[buffer(2)]],
-                  device float* c [[buffer(3)]],
-                  device const uint* dims [[buffer(4)]],
-                  uint2 at [[thread_position_in_grid]],
-                  uint2 in [[thread_position_in_threadgroup]],
-                  uint2 group [[threads_per_threadgroup]]) {
-  threadgroup float part[1024];
-  uint m = dims[0], k = dims[1];
-  float sum = 0.0f;
-  for (uint j = in.y; j < m; j += group.y) sum += a[j] * w[j * k + at.x];
-  part[in.y * group.x + in.x] = sum;
-  threadgroup_barrier(mem_flags::mem_threadgroup);
-  if (in.y == 0) {
-    for (uint i = 1; i < group.y; i++) sum += part[i * group.x + in.x];
-    c[at.x] = sum + bias[at.x];
-  }
-}")
+; The kernels are grid forms (x/tool/grid-form), which each GPU backend
+; turns into what its device takes.  norm, attend and score are each run
+; by a team: a member takes a share of the sum, the elements
+; member, member + team and on, and team-sum adds the shares up.
+;
+; A Float a kernel needs is named in its form and put there by %tf-form.
+(def %tf-floats
+  (list (pair (lit %half) (float-of "0.5")) (pair (lit %one) (float-of 1))
+        (pair (lit %ten) (float-of 10)) (pair (lit %-ten) (float-of -10))
+        (pair (lit %gelu-root) (float-of "0.7978845608028654"))
+        (pair (lit %gelu-cube) (float-of "0.044715"))
+        (pair (lit %norm-floor) (float-of "0.00001"))))
+(def %tf-form
+  (fn (self form)
+    (match
+      ((pair? form) (pair (self (first form)) (self (rest form))))
+      ((symbol? form) (let ((e (Assoc entry form %tf-floats))) (if (null? e) form (rest e))))
+      (#t form))))
 
-; A score: a row of the items times the normed row.  Each simdgroup of 32
-; threads takes a row, each thread a 32nd of it, so neighbouring threads
-; read neighbouring floats, four at a time where the width allows.
-; dims: the width, the rows.
-(def %tf-score-source "#include <metal_stdlib>
-using namespace metal;
-kernel void score(device const float* items [[buffer(0)]],
-                  device const float* x [[buffer(1)]],
-                  device float* out [[buffer(2)]],
-                  device const uint* dims [[buffer(3)]],
-                  uint2 at [[thread_position_in_grid]],
-                  uint lane [[thread_index_in_simdgroup]]) {
-  uint w = dims[0], row = at.x / 32;
-  if (row >= dims[1]) return;
-  float sum = 0.0f;
-  if (w % 4 == 0) {
-    device const float4* r = (device const float4*)(items + row * w);
-    device const float4* v = (device const float4*)x;
-    for (uint j = lane; j < w / 4; j += 32) sum += dot(r[j], v[j]);
-  } else {
-    device const float* r = items + row * w;
-    for (uint j = lane; j < w; j += 32) sum += r[j] * x[j];
-  }
-  sum = simd_sum(sum);
-  if (lane == 0) out[row] = sum;
-}")
+; A layer is two steps.  The first's grid is the layer's columns across
+; and 32 down: the threads of a column each sum a share of its products,
+; every 32nd, into a row of parts, and neighbouring threads across read
+; neighbouring floats of a weight's row.  dims: the rows of the weight,
+; its columns.
+(def %tf-layer-form
+  (lit (fn (_ a w part dims)
+         (let ((m (i32-ref dims 0)) (k (i32-ref dims 1)))
+           (f32-set! part (+ (* at-y k) at-x)
+             (let go ((j at-y) (s (i->f 0)))
+               (if (< j m)
+                 (go (+ j 32) (f+ s (f* (f32-ref a j) (f32-ref w (+ (* j k) at-x)))))
+                 s)))))))
 
-; The place of the greatest score, for the pick that wants it: one group
-; of 32 by 32, each thread the greatest of a share of the scores, then the
-; greatest of each simdgroup's and of the group's.  Of equal scores the
-; first is kept, as f32-max-at keeps it.  Where a group is smaller, each
-; group finds it for the whole.  dims: the scores' count.
-(def %tf-best-source "#include <metal_stdlib>
-using namespace metal;
-void best_of(thread float& v, thread uint& i, float ov, uint oi) {
-  if (ov > v || (ov == v && oi < i)) { v = ov; i = oi; }
-}
-kernel void best(device const float* scores [[buffer(0)]],
-                 device uint* place [[buffer(1)]],
-                 device const uint* dims [[buffer(2)]],
-                 uint2 in [[thread_position_in_threadgroup]],
-                 uint2 group [[threads_per_threadgroup]],
-                 uint lane [[thread_index_in_simdgroup]],
-                 uint sg [[simdgroup_index_in_threadgroup]],
-                 uint sgs [[simdgroups_per_threadgroup]]) {
-  threadgroup float values[32];
-  threadgroup uint places[32];
-  uint n = dims[0], t = in.y * group.x + in.x, all = group.x * group.y;
-  float v = -INFINITY;
-  uint i = 0xffffffff;
-  for (uint j = t; j < n; j += all) best_of(v, i, scores[j], j);
-  for (ushort d = 16; d > 0; d /= 2) best_of(v, i, simd_shuffle_down(v, d), simd_shuffle_down(i, d));
-  if (lane == 0) { values[sg] = v; places[sg] = i; }
-  threadgroup_barrier(mem_flags::mem_threadgroup);
-  if (t == 0) {
-    for (uint k = 1; k < sgs; k++) best_of(v, i, values[k], places[k]);
-    place[0] = i;
-  }
-}")
+; The second adds a column's 32 parts up with its bias, and does with the
+; sum v what the layer is for: BUFFERS are the kernel's own after the
+; parts and the bias, and WRITE the form that stores v.
+(def %tf-layer-end
+  (fn (_ buffers write)
+    (%tf-form
+      (list (lit fn) (pair (lit _) (pair (lit part) (pair (lit bias) (List append buffers (lit (dims))))))
+        (list (lit let)
+              (lit ((v (f+ (let go ((i 0) (s (i->f 0)))
+                             (if (< i 32) (go (+ i 1) (f+ s (f32-ref part (+ (* i (i32-ref dims 1)) at-x)))) s))
+                           (f32-ref bias at-x)))))
+              write)))))
 
-; A norm's grid is one group of 32 by 32: the threads sum a share of the
-; row each, and the simdgroups' sums are added up through the group's
-; memory.  Where a group is smaller, each group norms the whole row.
-(def %tf-norm-source "#include <metal_stdlib>
-using namespace metal;
-float norm_total(float v, threadgroup float* share, uint lane, uint sg, uint sgs) {
-  v = simd_sum(v);
-  threadgroup_barrier(mem_flags::mem_threadgroup);
-  if (lane == 0) share[sg] = v;
-  threadgroup_barrier(mem_flags::mem_threadgroup);
-  float total = 0.0f;
-  for (uint i = 0; i < sgs; i++) total += share[i];
-  return total;
-}
-kernel void norm(device const float* x [[buffer(0)]],
-                 device const float* gain [[buffer(1)]],
-                 device const float* bias [[buffer(2)]],
-                 device float* out [[buffer(3)]],
-                 device const uint* dims [[buffer(4)]],
-                 uint2 in [[thread_position_in_threadgroup]],
-                 uint2 group [[threads_per_threadgroup]],
-                 uint lane [[thread_index_in_simdgroup]],
-                 uint sg [[simdgroup_index_in_threadgroup]],
-                 uint sgs [[simdgroups_per_threadgroup]]) {
-  threadgroup float share[32];
-  uint n = dims[0], t = in.y * group.x + in.x, all = group.x * group.y;
-  float s = 0.0f;
-  for (uint i = t; i < n; i += all) s += x[i];
-  float mean = norm_total(s, share, lane, sg, sgs) / (float)n;
-  s = 0.0f;
-  for (uint i = t; i < n; i += all) { float d = x[i] - mean; s += d * d; }
-  float deviation = sqrt(norm_total(s, share, lane, sg, sgs) / (float)n + 0.00001f);
-  for (uint i = t; i < n; i += all) out[i] = (x[i] - mean) / deviation * gain[i] + bias[i];
-}")
+; The place of the greatest score, for the pick that wants it, in two
+; steps.  The first's grid is as many threads as dims says: each finds
+; the greatest of a share of the scores, every so-manieth, and writes it
+; and its place.  The second, one thread, finds the greatest of those.
+; Of equal scores the first is kept, as f32-max-at keeps it.
+; dims: the scores' count, the threads.
+(def %tf-best-part-form
+  (lit (fn (_ scores values places dims)
+         (let ((n (i32-ref dims 0)) (c (i32-ref dims 1)))
+           (if (< at-x n)
+             (let go ((j (+ at-x c)) (v (f32-ref scores at-x)) (i at-x))
+               (if (< j n)
+                 (if (f< v (f32-ref scores j)) (go (+ j c) (f32-ref scores j) j) (go (+ j c) v i))
+                 (do (f32-set! values at-x v) (i32-set! places at-x i)))))))))
 
-; tanh's argument is kept within 10 of 0: past that a single's tanh is 1
-; or -1 exactly, and the GPU's tanh of a large number is not a number.
-(def %tf-gelu-source "#include <metal_stdlib>
-using namespace metal;
-kernel void gelu(device float* x [[buffer(0)]],
-                 uint2 at [[thread_position_in_grid]]) {
-  float v = x[at.x];
-  float u = clamp(0.7978845608028654f * (v + 0.044715f * v * v * v), -10.0f, 10.0f);
-  x[at.x] = 0.5f * v * (1.0f + tanh(u));
-}")
+(def %tf-best-form
+  (lit (fn (_ values places best dims)
+         (let ((n (i32-ref dims 0)) (c (i32-ref dims 1)))
+           (let ((count (if (< n c) n c)))
+             (let go ((k 1) (v (f32-ref values 0)) (i (i32-ref places 0)))
+               (if (< k count)
+                 (let ((ov (f32-ref values k)) (oi (i32-ref places k)))
+                   (if (f< v ov) (go (+ k 1) ov oi)
+                     (if (f= v ov)
+                       (if (< oi i) (go (+ k 1) ov oi) (go (+ k 1) v i))
+                       (go (+ k 1) v i))))
+                 (i32-set! best 0 i))))))))
 
-(def %tf-add-source "#include <metal_stdlib>
-using namespace metal;
-kernel void add(device float* x [[buffer(0)]],
-                device const float* y [[buffer(1)]],
-                uint2 at [[thread_position_in_grid]]) {
-  x[at.x] += y[at.x];
-}")
 
-(def %tf-store-source "#include <metal_stdlib>
-using namespace metal;
-kernel void store(device const float* row [[buffer(0)]],
-                  device float* cache [[buffer(1)]],
-                  device const uint* place [[buffer(2)]],
-                  device const uint* dims [[buffer(3)]],
-                  uint2 at [[thread_position_in_grid]]) {
-  cache[place[0] * dims[0] + at.x] = row[at.x];
-}")
+; The queries, keys and values, written into the block's cache at the
+; position.  place: the position.
+(def %tf-layer-store-form
+  (%tf-layer-end (lit (cache place))
+    (lit (f32-set! cache (+ (* (i32-ref place 0) (i32-ref dims 1)) at-x) v))))
+
+; A layer whose row is added into the row x.
+(def %tf-layer-add-form
+  (%tf-layer-end (lit (x)) (lit (f32-set! x at-x (f+ (f32-ref x at-x) v)))))
+
+; A layer whose row's gelu is taken, the tanh form.  tanh's argument is
+; kept within 10 of 0: past that a single's tanh is 1 or -1 exactly, and a
+; GPU's tanh of a large number can be not a number.
+(def %tf-layer-gelu-form
+  (%tf-layer-end (lit (h))
+    (lit (let ((u (f* %gelu-root (f+ v (f* %gelu-cube (f* v (f* v v)))))))
+           (let ((u (if (f< u %-ten) %-ten (if (f< %ten u) %ten u))))
+             (f32-set! h at-x (f* (f* %half v) (f+ %one (f-tanh u)))))))))
+
+; A score: a row of the items times the normed row, a row to a team.  A
+; member takes every team's-width-th four floats of the row, so
+; neighbouring members read neighbouring floats, four at a time; the
+; floats past the last four are taken one at a time.  dims: the width.
+(def %tf-score-form
+  (lit (fn (_ items x out dims)
+         (let ((w (i32-ref dims 0)))
+           (let ((r (* at-x w)) (fours (/ w 4)))
+             (let ((sum (team-sum
+                          (let last ((j (+ (* 4 fours) member))
+                                     (s (let go ((j member) (s (i->f 0)))
+                                          (if (< j fours)
+                                            (let ((at (* 4 j)))
+                                              (go (+ j team)
+                                                  (f+ s (f+ (f+ (f* (f32-ref items (+ r at)) (f32-ref x at))
+                                                                (f* (f32-ref items (+ r (+ at 1))) (f32-ref x (+ at 1))))
+                                                            (f+ (f* (f32-ref items (+ r (+ at 2))) (f32-ref x (+ at 2)))
+                                                                (f* (f32-ref items (+ r (+ at 3))) (f32-ref x (+ at 3))))))))
+                                            s))))
+                            (if (< j w)
+                              (last (+ j team) (f+ s (f* (f32-ref items (+ r j)) (f32-ref x j))))
+                              s)))))
+               (if (= member 0) (f32-set! out at-x sum))))))))
+
+; A norm's grid is one point: its team sums the row, then its squared
+; distances from the mean, and each member writes its share of the row.
+; dims: the width.
+(def %tf-norm-form
+  (%tf-form
+    (lit (fn (_ x gain bias out dims)
+           (let ((n (i32-ref dims 0)))
+             (let ((mean (f/ (team-sum (let go ((i member) (s (i->f 0)))
+                                         (if (< i n) (go (+ i team) (f+ s (f32-ref x i))) s)))
+                             (i->f n))))
+               (let ((spread (team-sum (let go ((i member) (s (i->f 0)))
+                                         (if (< i n)
+                                           (let ((d (f- (f32-ref x i) mean))) (go (+ i team) (f+ s (f* d d))))
+                                           s)))))
+                 (let ((deviation (f-sqrt (f+ (f/ spread (i->f n)) %norm-floor))))
+                   (let go ((i member))
+                     (if (< i n)
+                       (do (f32-set! out i
+                             (f+ (f* (f/ (f- (f32-ref x i) mean) deviation) (f32-ref gain i)) (f32-ref bias i)))
+                           (go (+ i team)))))))))))))
 
 ; dims: the width, a head's width.  A cache row is the queries, the keys
 ; and the values side by side, each a head after another.  A head is a
-; simdgroup's, each thread a 32nd of its channels; the softmax is taken
-; as the rows are read, the sum so far scaled down whenever a higher
-; score is met.
-(def %tf-attend-source "#include <metal_stdlib>
-using namespace metal;
-kernel void attend(device const float* cache [[buffer(0)]],
-                   device float* out [[buffer(1)]],
-                   device const uint* place [[buffer(2)]],
-                   device const uint* dims [[buffer(3)]],
-                   uint2 at [[thread_position_in_grid]],
-                   uint lane [[thread_index_in_simdgroup]]) {
-  uint from = place[0], w = dims[0], hw = dims[1];
-  uint row = 3 * w, head = (at.x / 32) * hw;
-  uint q = from * row + head;
-  float root = sqrt((float)hw);
-  float top = 0.0f, sum = 0.0f;
-  for (uint c = lane; c < hw; c += 32) out[head + c] = 0.0f;
-  for (uint p = 0; p <= from; p++) {
-    uint k = p * row + w + head, v = p * row + 2 * w + head;
-    float s = 0.0f;
-    for (uint c = lane; c < hw; c += 32) s += cache[q + c] * cache[k + c];
-    s = simd_sum(s) / root;
-    float high = (p == 0) ? s : max(top, s);
-    float scale = exp(top - high), e = exp(s - high);
-    if (p == 0) scale = 0.0f;
-    sum = sum * scale + e;
-    for (uint c = lane; c < hw; c += 32) out[head + c] = out[head + c] * scale + e * cache[v + c];
-    top = high;
-  }
-  for (uint c = lane; c < hw; c += 32) out[head + c] /= sum;
-}")
+; team's, each member a share of its channels; the softmax is taken as
+; the rows are read, the sum so far scaled down whenever a higher score
+; is met.
+(def %tf-attend-form
+  (lit (fn (_ cache out place dims)
+         (let ((from (i32-ref place 0)) (w (i32-ref dims 0)) (hw (i32-ref dims 1)))
+           (let ((row (* 3 w)) (head (* at-x hw)) (root (f-sqrt (i->f hw))))
+             (let ((q (+ (* from row) head)))
+               (let clear ((c member))
+                 (if (< c hw) (do (f32-set! out (+ head c) (i->f 0)) (clear (+ c team)))))
+               (let ((sum
+                       (let each ((p 0) (top (i->f 0)) (sum (i->f 0)))
+                         (if (< from p) sum
+                           (let ((k (+ (+ (* p row) w) head)) (v (+ (+ (* p row) (* 2 w)) head)))
+                             (let ((s (f/ (team-sum (let dot ((c member) (s (i->f 0)))
+                                                      (if (< c hw)
+                                                        (dot (+ c team)
+                                                             (f+ s (f* (f32-ref cache (+ q c)) (f32-ref cache (+ k c)))))
+                                                        s)))
+                                          root)))
+                               (let ((high (if (= p 0) s (if (f< top s) s top))))
+                                 (let ((scale (if (= p 0) (i->f 0) (f-exp (f- top high))))
+                                       (e (f-exp (f- s high))))
+                                   (let mix ((c member))
+                                     (if (< c hw)
+                                       (do (f32-set! out (+ head c)
+                                             (f+ (f* (f32-ref out (+ head c)) scale) (f* e (f32-ref cache (+ v c)))))
+                                           (mix (+ c team)))))
+                                   (each (+ p 1) high (f+ (f* sum scale) e))))))))))
+                 (let share ((c member))
+                   (if (< c hw)
+                     (do (f32-set! out (+ head c) (f/ (f32-ref out (+ head c)) sum))
+                         (share (+ c team))))))))))))
 
 ; place: the position, then the id.  dims: the width.
-(def %tf-embed-source "#include <metal_stdlib>
-using namespace metal;
-kernel void embed(device const float* items [[buffer(0)]],
-                  device const float* places [[buffer(1)]],
-                  device float* x [[buffer(2)]],
-                  device const uint* place [[buffer(3)]],
-                  device const uint* dims [[buffer(4)]],
-                  uint2 at [[thread_position_in_grid]]) {
-  uint w = dims[0];
-  x[at.x] = items[place[1] * w + at.x] + places[place[0] * w + at.x];
-}")
+(def %tf-embed-form
+  (lit (fn (_ items places x place dims)
+         (let ((w (i32-ref dims 0)))
+           (f32-set! x at-x (f+ (f32-ref items (+ (* (i32-ref place 1) w) at-x))
+                                (f32-ref places (+ (* (i32-ref place 0) w) at-x))))))))
 
 ; The work for one position of M, for ROWS positions in all.
 (def %tf-work
@@ -723,48 +706,52 @@ kernel void embed(device const float* items [[buffer(0)]],
             (buf (fn (_ t) (Gpu %buffer-of t))))
         (let ((zeros (fn (_ r c) (hold (Matrix %make ((obj-ref f 4) (lit f32) (list r c))))))
               (wide (int* 4 width)) (across (int* 3 width)))
-          (let ((x (zeros 1 width)) (n (zeros 1 width)) (t (zeros 1 width)) (o (zeros 1 width))
-                (qkv (zeros 1 across)) (h (zeros 1 wide))
+          (let ((x (zeros 1 width)) (n (zeros 1 width)) (t (zeros 1 width))
+                (h (zeros 1 wide)) (part (zeros 32 wide))
                 (place (word (list 0 0))) (best (word (list 0)))
-                (d-width (word (list width))) (d-across (word (list across)))
+                (d-width (word (list width)))
                 (d-attend (word (list width (int/ width heads))))
                 (d-in (word (list width across))) (d-same (word (list width width)))
                 (d-out (word (list width wide))) (d-back (word (list wide width))))
-            (let ((layer (fn (_ a l dims out count)
-                           (Gpu %step (lit layer) %tf-layer-source
-                             (list (buf a) (buf (first l)) (buf (hold (rest l))) (buf out) dims) count 32)))
+            (let ((layer (fn (_ a l dims count name form buffers)
+                           (list (Gpu %step (lit layer) %tf-layer-form
+                                   (list (buf a) (buf (first l)) (buf part) dims) count 32)
+                                 (Gpu %step name form
+                                   (List append (list (buf part) (buf (hold (rest l)))) buffers (list dims)) count 1))))
                   (norm (fn (_ g)
-                          (Gpu %step (lit norm) %tf-norm-source
-                            (list (buf x) (buf (hold (first g))) (buf (hold (rest g))) (buf n) d-width) 32 32)))
-                  (add (fn (_ y) (Gpu %step (lit add) %tf-add-source (list (buf x) (buf y)) width 1))))
+                          (Gpu %step (lit norm) %tf-norm-form
+                            (list (buf x) (buf (hold (first g))) (buf (hold (rest g))) (buf n) d-width) 1 1))))
               (let ((blocks
                       (List flat-map
                         (fn (_ b)
                           (let ((cache (zeros rows across)))
-                            (list (norm (List ref 0 b))
-                                  (layer n (List ref 1 b) d-in qkv across)
-                                  (Gpu %step (lit store) %tf-store-source (list (buf qkv) (buf cache) place d-across) across 1)
-                                  (Gpu %step (lit attend) %tf-attend-source (list (buf cache) (buf t) place d-attend) (int* 32 heads) 1)
-                                  (layer t (List ref 2 b) d-same o width)
-                                  (add o)
-                                  (norm (List ref 3 b))
-                                  (layer n (List ref 4 b) d-out h wide)
-                                  (Gpu %step (lit gelu) %tf-gelu-source (list (buf h)) wide 1)
-                                  (layer h (List ref 5 b) d-back o width)
-                                  (add o))))
+                            (List append
+                              (list (norm (List ref 0 b)))
+                              (layer n (List ref 1 b) d-in across (lit layer-store) %tf-layer-store-form
+                                     (list (buf cache) place))
+                              (list (Gpu %step (lit attend) %tf-attend-form (list (buf cache) (buf t) place d-attend) heads 1))
+                              (layer t (List ref 2 b) d-same width (lit layer-add) %tf-layer-add-form (list (buf x)))
+                              (list (norm (List ref 3 b)))
+                              (layer n (List ref 4 b) d-out wide (lit layer-gelu) %tf-layer-gelu-form (list (buf h)))
+                              (layer h (List ref 5 b) d-back width (lit layer-add) %tf-layer-add-form (list (buf x))))))
                         (m %blocks)))
                     ; the scores: every row of the items times the normed row
                     (many (first ((m %items) extent))))
-                (let ((body (pair (Gpu %step (lit embed) %tf-embed-source
+                (let ((body (pair (Gpu %step (lit embed) %tf-embed-form
                                     (list (buf (m %items)) (buf (hold (m %positions))) (buf x) place d-width) width 1)
                                   blocks))
-                      (scores (hold (Tensor %make ((obj-ref f 4) (lit f32) (list many))))))
+                      (scores (hold (Tensor %make ((obj-ref f 4) (lit f32) (list many)))))
+                      (best-values (hold (Tensor %make ((obj-ref f 4) (lit f32) (list 256)))))
+                      (best-places (word (List map (fn (_ i) 0) (List range 0 256))))
+                      (best-dims (word (list many 256))))
                   (let ((all (List append body
                                (list (norm (m %norm))
-                                     (Gpu %step (lit score) %tf-score-source
-                                       (list (buf (m %items)) (buf n) (buf scores) (word (list width many))) (int* 32 many) 1)
-                                     (Gpu %step (lit best) %tf-best-source
-                                       (list (buf scores) best (word (list many))) 32 32))))
+                                     (Gpu %step (lit score) %tf-score-form
+                                       (list (buf (m %items)) (buf n) (buf scores) (word (list width many))) many 1)
+                                     (Gpu %step (lit best-part) %tf-best-part-form
+                                       (list (buf scores) (buf best-values) best-places best-dims) 256 1)
+                                     (Gpu %step (lit best) %tf-best-form
+                                       (list (buf best-values) best-places best best-dims) 1 1))))
                         (at-scores ((obj-ref f 13) (scores %st))))
                     (pair
                       (fn (_ id from pick)
