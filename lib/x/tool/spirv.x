@@ -70,7 +70,9 @@
     (if (null? (first %sv-single-cell))
       (%set-first! %sv-single-cell (libm-fn (lit %spirv-single) "d->f" ()))
       ())
-    (int& ((first %sv-single-cell) (first float)) 4294967295)))
+    ; the bits are the word's low 32
+    (let ((bits ((first %sv-single-cell) (first float))))
+      (if (int= %word-size 8) (int>> (int<< bits 32) 32) bits))))
 
 ; The operators' instructions: a number, or (ext N) for a function of
 ; the GLSL.std.450 set.
@@ -116,7 +118,8 @@
 
 (def-class Spirv ()
   (doc "A grid form as a SPIR-V module, the code a Vulkan device takes: a compute shader whose storage buffers are the form's parameters."
-    (note "Every method is private for now: x/sys/vulkan is the caller."))
+    (note "Every method is private for now: x/sys/vulkan is the caller.")
+    (example "(do (import x/tool/grid-form grid-form-plan) (import x/core/doors ptr-ref str->ptr) (ptr-ref (str->ptr (first (Spirv %kernel (grid-form-plan (lit (fn (_ a) (i32-set! a at-x at-y)))) 64 1))) 0 4))" "119734787"))
   (static
     (method %kernel (self (param plan LIST "A grid form's plan, from grid-form-plan")
                           (param across INTEGER "A group's threads across, for a form with no team")
@@ -139,7 +142,7 @@
       (g 32 var-int 7 int) (g 32 var-float 7 float) (g 32 var-bool 7 bool)
       (def type-of (fn (_ t) (match ((eq? t (lit f)) float) ((eq? t (lit i)) int) (#t bool))))
       (def var-of (fn (_ t) (match ((eq? t (lit f)) var-float) ((eq? t (lit i)) var-int) (#t var-bool))))
-      (def int-const (fn (_ n) (%sv-const b int (int& n 4294967295))))
+      (def int-const (fn (_ n) (%sv-const b int n)))
       (def uint-const (fn (_ n) (%sv-const b uint n)))
       ; a buffer of an element type: (STRUCT-POINTER ELEMENT-POINTER)
       (def storage
@@ -343,4 +346,5 @@
             (List flat-map (fn (_ op) op) (rest body))))))))
 
 (doc (provide x/tool/spirv Spirv)
+  (example "(do (import x/tool/grid-form grid-form-plan) (= 0 (% (rest (Spirv %kernel (grid-form-plan (lit (fn (_ a) (i32-set! a at-x at-y)))) 8 8)) 4)))" "#t")
   "Spirv: a grid form (x/tool/grid-form) written as a SPIR-V module, the compute shader a Vulkan device takes.")

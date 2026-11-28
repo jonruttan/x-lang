@@ -57,7 +57,7 @@
 (import x/core/list)
 (import x/tool/grid-form grid-form-plan)
 (import x/tool/spirv)
-(import x/core/doors ffi-dlopen ffi-dlsym image-transient! int& int* int+ int- int/ int< int= int>> int->ptr mem-set ptr->int ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make)
+(import x/core/doors ffi-dlopen ffi-dlsym image-transient! int& int* int+ int- int/ int< int<< int= int>> int->ptr mem-set ptr->int ptr->str ptr-call ptr-ref ptr-ref-word ptr-set! ptr-set-word! str->ptr str-make)
 
 ; The library's functions by name, ((NAME . POINTER) ...), each looked up
 ; the first time it is wanted; and the device's state, nil until it is
@@ -91,12 +91,12 @@
 
 ; A result is 32 bits, 0 for success; the rest of the word is not its.
 (def %vk-ok?
-  (fn (_ result) (int= (int& result 4294967295) 0)))
+  (fn (_ result) (int= (int<< result 32) 0)))
 
 (def %vk-need
   (fn (_ result what)
     (if (%vk-ok? result) ()
-      (Err raise (lit io) (Str8 append "Vulkan " what ": the device refused") (int& result 4294967295)))))
+      (Err raise (lit io) (Str8 append "Vulkan " what ": the device refused") (int>> (int<< result 32) 32)))))
 
 ; A zeroed region of BYTES bytes.
 (def %vk-room
@@ -422,8 +422,10 @@
       (when (not (int= count (List length buffers)))
         (Err raise (lit value) "Vulkan: a kernel is given a buffer for each of its form's" (List ref 1 pipeline)))
       (def shape (Vulkan %shape pipeline height))
-      (def across (int/ (int+ width (int- (List ref 1 shape) 1)) (List ref 1 shape)))
-      (def down (int/ (int+ height (int- (List ref 2 shape) 1)) (List ref 2 shape)))
+      ; a team's group is a point's; any other grid is covered by whole groups
+      (def team (List ref 4 (first pipeline)))
+      (def across (if team width (int/ (int+ width (int- (List ref 1 shape) 1)) (List ref 1 shape))))
+      (def down (if team height (int/ (int+ height (int- (List ref 2 shape) 1)) (List ref 2 shape))))
       (when (if (int< (Vulkan %most-groups) across) #t (int< (Vulkan %most-groups) down))
         (Err raise (lit value) "Vulkan: the grid takes more groups than a device runs" (list width height)))
       (def infos (%vk-room (int* 24 (if (int< count 1) 1 count))))
@@ -433,7 +435,7 @@
               (ptr-set-word! (str->ptr infos) (int+ at 16) (Vulkan %whole-size))
               (each (rest bs) (int+ at 24)))))
       (list (first (Vulkan %compiled pipeline shape)) (Vulkan %layout state count) count infos across down
-            (if (List ref 4 (first pipeline)) ()
+            (if team ()
               (%vk-struct 8 (list (list 0 4 width) (list 4 4 height))))))
 
     (method %barrier (self (param commands INTEGER "The command buffer")
