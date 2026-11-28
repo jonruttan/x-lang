@@ -143,6 +143,18 @@ On the last row, where the cells end, and on a row above a wide character the ne
 ---
     (3 "a  b    c" "" "d")
 
+### a text's last line end adds no line, an empty line is kept, and a long line is broken at the width, a wide character whole
+
+```x
+(do (import x/tui/page)
+  (def lines (fn (_ p) (List map (fn (_ i) (Page line-text p i)) (List range 0 (Page count p)))))
+  (list (lines (Page text "" 5)) (lines (Page text "\n" 5)) (lines (Page text "a\n\nb\n" 5)) (lines (Page text "a\nb" 5))
+        (lines (Page text "abcdefghijkl\tm" 5)) (lines (Page text "ab中中中c" 5)) (lines (Page text "中" 1))
+        (Page count (Page text (Str8 join "" (List map (fn (_ i) "0123456789") (List range 0 2000))) 80))))
+```
+---
+    (() ("") ("a" "" "b") ("a" "b") ("abcde" "fghij" "kl   " " m") ("ab中" "中中c") ("中") 250)
+
 ### a page of many thousand lines is laid out, text or blocks: no walk over its lines waits a call a line
 
 ```x

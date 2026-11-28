@@ -38,6 +38,7 @@
 (import x/tui/screen Screen screen-put! screen-fill! screen-row-cells screen-row!)
 (import x/protocol/str/str8 str-find-byte)
 (import x/sys/gc)
+(import x/sys/posix sys-clock)
 
 (import x/core/doors char->int int& int* int+ int- int/ int< int= int| obj-make obj-ref obj-set! str-byte-len str-byte-ref str-byte-sub)
 (def %pg-cvt (prim-ref (lit convert) (lit to)))
@@ -81,19 +82,28 @@
 (def %pg-rev (fn (_ l) (%pg-onto l ())))
 (def %pg-onto (fn (self l acc) (match ((eq? l ()) acc) (#t (self (rest l) (pair (first l) acc))))))
 
-; No collect runs by itself (x/sys/gc), and a line laid out leaves 20 to
-; 40 KB of frames behind it, measured on short lines of text: 12,000 left
-; 450 MB, a collect of it 0.5 s.  A collect each 1,024 lines a step of
-; the layout makes keeps a long page's garbage to tens of MB: 12,000 lines
-; took 2.1 s and 650 MB with it, 1.5 s and 1,070 MB without.  Collecting
-; when the heap's objects had doubled was slower (2.4 s): a line's garbage
-; far outweighs what it leaves live, so the heap doubles between any two
-; asks, and (Heap count) walks the heap to answer.
-(def %pg-made 0)
+; No collect runs by itself (x/sys/gc), and laying out leaves garbage: a
+; wrapped paragraph's frames most of all, 20 to 40 KB a line.  A layout
+; collects when it has run twice as long as its last collect took, so
+; collecting is a third of a long layout's time at most, and the garbage
+; between two collects is what the layout makes in twice a collect's
+; time: a share of what is live, since a collect's time grows with that.
+; Lines counted do not serve: a fixed count costs the square of the page
+; (48,000 lines of text 6.1 s, 4.8 s of it collecting), and a count that
+; doubles lets a long page's garbage pass 3 GB.  A layout shorter than
+; twice a collect makes none.  The clock is CPU time, the one (Sys
+; clock) reads.
+(def %pg-since 0)
+(def %pg-cost 0)
+(def %pg-start! (fn (_) (set! %pg-since (sys-clock))))
 (def %pg-tidy!
   (fn (_ n)
-    (set! %pg-made (int+ %pg-made n))
-    (match ((int< 1023 %pg-made) (do (Heap collect) (set! %pg-made 0))) (#t ()))))
+    ((fn (_ now)
+       (match ((int< (int- now %pg-since) (int+ %pg-cost %pg-cost)) ())
+              (#t (do (Heap collect)
+                      (set! %pg-since (sys-clock))
+                      (set! %pg-cost (int- %pg-since now))))))
+     (sys-clock))))
 (def %pg-append (fn (_ a b) (%pg-onto (%pg-rev a) b)))
 (def %pg-repeat (fn (self s n) (match ((int< n 1) "") (#t (%str-concat (list s (self s (int+ n -1))))))))
 
@@ -219,12 +229,14 @@
            (first pieces))))))
 
 ; --- tokens to lines -------------------------------------------------------
-; The first bytes of S, from I, that fit in W columns: their end.
-(def %pg-fit
-  (fn (self s i w)
-    (match ((int= i (str-byte-len s)) i)
+; The first bytes of S, from I, that fit in W columns: their end.  S is N
+; bytes: its length is measured once, not a character at a time.
+(def %pg-fit-to
+  (fn (self s i w n)
+    (match ((int= i n) i)
            ((int< w (char-width (utf8-cp-at s i))) i)
-           (#t (self s (int+ i (utf8-width s i)) (int+ w (int- 0 (char-width (utf8-cp-at s i)))))))))
+           (#t (self s (int+ i (utf8-width s i)) (int+ w (int- 0 (char-width (utf8-cp-at s i)))) n)))))
+(def %pg-fit (fn (_ s i w) (%pg-fit-to s i w (str-byte-len s))))
 (def %pg-frags-width
   (fn (self frags) (match ((eq? frags ()) 0) (#t (int+ (%pg-4th (first frags)) (self (rest frags)))))))
 ; Tokens laid out WIDTH wide: lines, in order.
@@ -282,12 +294,39 @@
                 (match ((int= (int& (char->int (str-byte-ref s i)) 192) 128) col) (#t (int+ col 1)))
                 (pair (char->int (str-byte-ref s i)) out))))))
 (def %pg-repeat-list (fn (self x n) (match ((int< n 1) ()) (#t (pair x (self x (int+ n -1)))))))
+; Each line is cut where strchr finds its end, a call a line, and a line
+; with no tab is kept as it is: only one with a tab is walked a byte at a
+; time.
+(def %pg-text-line
+  (fn (_ l) (match ((eq? (str-find-byte l 9 0) ()) l) (#t (%pg-expand l 0 0 ())))))
 (def %pg-text-lines
   (fn (_ text)
-    ((fn (_ ls) (match ((match ((eq? ls ()) #f) (#t (str=? (first (%pg-rev ls)) "")))
-                         (%pg-rev (rest (%pg-rev ls))))
-                        (#t ls)))
-     (%pg-map (fn (_ l) (%pg-tidy! 1) (%pg-expand l 0 0 ())) (Str8 split "\n" text)))))
+    ((fn (go i out)
+       (%pg-tidy! 1)
+       ((fn (_ at)
+          (match ((eq? at ())
+                   (%pg-rev (match ((int= i (str-byte-len text)) out)
+                                   (#t (pair (%pg-text-line (str-byte-sub text i (int- (str-byte-len text) i))) out)))))
+                 (#t (go (int+ at 1) (pair (%pg-text-line (str-byte-sub text i (int- at i))) out)))))
+        (str-find-byte text 10 i)))
+     0 ())))
+
+; Text line S, N bytes, from byte I as page lines put on OUT, last first:
+; broken where it runs past WIDTH, each piece cut from S in place, so a
+; line many pages long is not copied a piece at a time.  A character is no
+; wider in columns than in bytes, so what is left at WIDTH bytes or fewer
+; fits and is not measured; a character wider than the page takes a line.
+(def %pg-hard-line
+  (fn (self s i n width out)
+    (match
+      ((int< width (int- n i))
+        ((fn (_ e)
+           (match ((int= e n) (pair (list (list (str-byte-sub s i (int- e i)) 0 ())) out))
+                  (#t (do (%pg-tidy! 1)
+                          (self s e n width (pair (list (list (str-byte-sub s i (int- e i)) 0 ())) out))))))
+         ((fn (_ e) (match ((int= e i) (int+ i (utf8-width s i))) (#t e))) (%pg-fit-to s i width n))))
+      ((int= i 0) (pair (list (list s 0 ())) out))
+      (#t (pair (list (list (str-byte-sub s i (int- n i)) 0 ())) out)))))
 
 ; Text lines as page lines, each broken where it runs past WIDTH; OUT last
 ; first.
@@ -296,15 +335,7 @@
     (match
       ((eq? ls ()) (%pg-rev out))
       (#t (do (%pg-tidy! 1)
-            ((fn (_ s)
-               ((fn (_ e)
-                  (match
-                    ((int= e (str-byte-len s)) (self (rest ls) width (pair (list (list s 0 ())) out)))
-                    (#t (self (pair (str-byte-sub s e (int+ (str-byte-len s) (int- 0 e))) (rest ls)) width
-                              (pair (list (list (str-byte-sub s 0 e) 0 ())) out)))))
-                ((fn (_ e) (match ((match ((int= e 0) (int< 0 (str-byte-len s))) (#t #f)) (utf8-width s 0)) (#t e)))
-                 (%pg-fit s 0 width))))
-             (first ls)))))))
+              (self (rest ls) width (%pg-hard-line (first ls) 0 (str-byte-len (first ls)) width out)))))))
 
 ; --- blocks to lines -------------------------------------------------------
 ; LINES with FIRST's runs before the first and REST's before the others.
@@ -593,12 +624,14 @@
         (example "(do (import x/codec/markdown) (Page count (Page markdown (Markdown parse \"a\\n\\n- b\\n- c\") 20)))" "4")
         (example "(Page line-text (Page markdown (list (list 'paragraph (list \"Q: \" (list 'field 'text \"q\" \"hi\" #f () ()) \" \" (list 'field 'checkbox \"c\" \"on\" #t () ())))) 40) 0)" "\"Q: hi__________________ [X]\""))
       (def links (pair () 0))
+      (%pg-start!)
       (def lines (%pg-blocks blocks width 0 #f links))
       (%pg-make lines (%pg-rev (first links)) width))
     (method text (self (param text STRING "Plain text") (param width INTEGER "Columns"))
       (doc "Lay plain TEXT out WIDTH wide: its lines as they are, tabs to stops of four, a line wider than the page broken where it runs out."
         (returns VECTOR "The page")
         (example "(Page line-text (Page text \"abcdef\" 4) 1)" "\"ef\""))
+      (%pg-start!)
       (%pg-make (%pg-hard-lines (%pg-text-lines text) width ()) () width))
     (method count (self (param page VECTOR "A page"))
       (doc "PAGE's lines." (returns INTEGER "Lines")
