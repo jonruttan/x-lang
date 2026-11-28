@@ -79,6 +79,33 @@ objects, where its runs are placed, and the document its text spells.
 ---
     (3 ((31 "0" 709000 79000) (31 "31" 709000 79000) (8 "62" 709000 562000)))
 
+## tables
+
+### a table is a grid: columns as wide as their widest cell, a cell aligned as its column, a header row bold with a heavier rule under it
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf) (import x/codec/pdf-text)
+  (def %pws-table (list (lit table) #t (list () (lit right)) (list (list (list "A") (list "Right")) (list (list "x") (list "10")) (list (list "yy") (list "5")))))
+  (list (List map (fn (_ r) (list (first r) (List ref 1 r) (List ref 4 r) (List ref 5 r))) (%pws-runs (list %pws-table)))
+        (List take 3 (Str8 split "\n" (%pws-content (list %pws-table))))))
+```
+---
+    (((76000 708200 "A" 1) (95000 708200 "Right" 1) (76000 691200 "x" 0) (110873 691200 "10" 0) (76000 674200 "yy" 0) (116989 674200 "5" 0)) ("BT 76 708.2 Td /F1 11 Tf (A) Tj ET" "BT 95 708.2 Td /F1 11 Tf (Right) Tj ET" "0.5 w 72 720 m 127.105 720 l S"))
+
+### a table too wide for the page shares its width, a long cell broken to its column; a row that does not fit begins the next page
+
+```x
+(do (import x/codec/pdf-write) (import x/codec/pdf) (import x/codec/pdf-text)
+  (def %pws-cell (Str8 join " " (List map (fn (_ n) "words") (List range 0 30))))
+  (def %pws-wide (%pws-runs (list (list (lit table) #f () (list (list (list "n") (list %pws-cell) (list %pws-cell)))))))
+  (def %pws-tall (%pws-open (PdfWrite bytes (list (list (lit table) #f () (List map (fn (_ n) (list (list (Str8 str n)))) (List range 0 50)))))))
+  (list (List length %pws-wide)
+        (List fold (fn (_ m r) (match ((int< m (int+ (first r) (List ref 3 r))) (int+ (first r) (List ref 3 r))) (#t m))) 0 %pws-wide)
+        (List map (fn (_ p) ((fn (_ rs) (list (List length rs) (List ref 4 (first rs)))) (PdfText runs %pws-tall p))) (Pdf pages %pws-tall))))
+```
+---
+    (11 508370 ((38 "0") (12 "38")))
+
 ## characters
 
 ### WinAnsi's characters are their bytes, a character outside it a question mark; a link is read back, an image is its alternative text, raw HTML nothing
