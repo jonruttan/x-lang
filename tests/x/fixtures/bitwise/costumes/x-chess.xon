@@ -1,0 +1,8 @@
+; x-chess's bitwise.xon, frozen: the specs must not depend on a
+; sibling checkout being present, or on its costume staying still.
+
+(costume "x-chess"
+  (label "a language on x-lang")
+  (rows "., .," "{O,O}" "(♔ ♚)" " \" \"")
+  (roles "ii ii" "ieifi" "iaaai" " i i ")
+  (reference "1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. O-O"))
