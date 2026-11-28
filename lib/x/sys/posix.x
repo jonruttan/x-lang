@@ -124,6 +124,9 @@
 (def %c-sleep (%resolve "sleep"))
 (def %c-usleep (%resolve "usleep"))
 (def %c-poll (%resolve "poll"))
+; The process clock, bound once: a caller that reads it every line of a
+; long loop (x/tui/page) pays no class send and no lookup a read.
+(def sys-clock (prim-ref (lit sys) (lit clock)))
 (def %c-tzset (%resolve "tzset"))
 (def %c-localtime-r (%resolve "localtime_r"))
 (def %c-mktime (%resolve "mktime"))
@@ -636,13 +639,13 @@
       (when (< r 0) (error (Err from-errno (Err errno-of r) (lit fcntl) fd)))
       #t)
     ; clock was previously reached via the catalogue auto-class (ns sys); authored
-    ; here as the catalogue bridge retires (R4). Cold path -> inline prim-ref.
+    ; here as the catalogue bridge retires (R4).  sys-clock is the door bound once.
     (method clock (self)
       (doc "Current process CPU time in microseconds (the (Sys time) profiler reads this). WALL-clock time is (Sys now) / (Sys time-of-day)."
         (returns INTEGER "Microseconds of CPU time consumed")
         (example "(< 0 (Sys clock))" "#t")
         (sample "(Sys clock)" "184213"))
-      ((prim-ref (lit sys) (lit clock))))
+      (sys-clock))
 
     ; The verb seat (#108 rethink, ruled 2026-07-22): (Sys time thunk) TIMES;
     ; the wall-clock reading it displaced is (Sys now). A thunk parameter by
@@ -751,7 +754,7 @@
           (ptr-call %c-tzset)
           (ptr-call %c-mktime p))))))))
 
-(doc (provide x/sys/posix Sys)
+(doc (provide x/sys/posix Sys sys-clock)
   (note "POSIX via the Sys class: (Sys fork), (Sys exec name args), (Sys pipe),")
   (note "(Sys open-read path), (Sys getenv name), (Sys isatty fd), ...")
   (example "(Sys open-read \"/nonexistent/file\")" "-1")
