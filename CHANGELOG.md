@@ -5,6 +5,107 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-11-28
+
+**`Deflate flush` brings a stream to a byte boundary.** ([#1520]) A
+packet protocol such as SSH's compression feeds one stream across its
+packets and needs each packet readable when it arrives; `feed` held a
+piece's last bits until the next. `flush` writes them out, then an
+empty stored block that is not final, as zlib's Z_SYNC_FLUSH does, and
+the stream goes on.
+
+**`Panes`: a main pane with side panes on its left and right.**
+([#1523]) `(Panes draw panes screen row rows draw)` calls DRAW with each
+pane's name and a screen as wide as the pane, then copies it on at the
+pane's column with a bar between, bold beside a side that has the
+focus. A side is shown or hidden (`show!`, `toggle!`), wants a width
+(`width!`, 28 unless set), takes no more than a quarter of the columns,
+and is not drawn under 8; `focus!` and `focus-next!` move the focus
+among the shown panes. `(Screen paste screen row col from)` copies one
+screen onto another, clipped at its edges.
+
+**A page of many thousand lines lays out.** ([#1524]) `Page text` and
+`Page markdown` crashed at about ten thousand lines, a call left waiting
+each line until the stack ran out; the walks are tail calls now. A
+layout collects every 1,024 lines a step makes: 12,000 short lines lay
+out in 2.1 s and 650 MB, against 1,070 MB with no collect. 48,000 take
+15.9 s, 6.9 s of it collecting.
+
+**A `Web` page served over https opens its WebSocket as wss.**
+([#1526]) The page had `ws://` written in, so behind an https proxy the
+browser refused the socket as mixed content and the window never
+connected; the scheme now follows the page's own (`location.protocol`).
+Checked through nginx and Cloudflare to a Web window on a Raspberry Pi
+over netbird: the upgrade answers 101 at each hop.
+
+**Web sends a page only the rows of a frame that changed.** ([#1514]) A
+page gets the whole frame once, then each run of rows that differs from
+what it has, found with libc's memcmp through the foreign door.
+Dragging a piece in x-chess --web (2360 x 1520): 14.35 MB a frame at
+11.5 fps before, 1.4 MB at 24.5 fps after.
+
+**`Wav decode` reads floating-point WAV, 32 and 64 bits.** ([#1515])
+Sample packs ship 32-bit float WAV, which `Wav` refused. Format tag 3
+and the extensible form are read; a sample is times 32768, held to full
+scale, a NaN 0, each frame its channels' mean, as for integer PCM. Its
+frame loop is a word form with a compiled lane, made on the first
+floating-point file, so reading integer PCM loads no float stubs.
+
+**`Mixer effect!` takes `(convolve WAVE WET [MS])`: convolution reverb
+from a sample.** ([#1518]) The mix is convolved with the first MS
+(default 2000) of a sample made by `sample!` and added at WET percent
+of the impulse's energy, so a lone click gives back the dry sound. A
+2 s impulse adds 7.4 ms to a 23.2 ms stereo block on arm64.
+
+**A voice's `detune` is exact at any size.** ([#1521]) `(detune -1200)`
+played a voice at 0.31 of its step, not half, as the detune was a
+straight line meant for a chorus's few cents. It is now moved as a bend
+is, a whole octave exactly: A4 detuned -1200 renders byte for byte as
+A3, and A7 detuned -4800 as A3 too.
+
+**Bitwise sets the chess kings ♔ ♚.** ([#1512]) The owl's glyph set
+gains the two kings, borrowed from Menlo, so a costume can wear them;
+x-chess's does.
+
+**compile-fn! hands an integer door's non-integer operand to its type,
+as the interpreter does.** ([#1517]) int+ int- int* int/ int% int< and
+int= of two operands now run on raw words only when their operands are
+integers, and call the door otherwise, so x/num/bigint compiled
+(compile-module!, 37 closures) answers as it does interpreted:
+(/ (- (+ 9223372036854775807 1) 8) 10) is 922337203685477580, where it
+was 52297274061. Cost on compiled integer loops, best of five,
+1,000,000 iterations (the list sum 960,000 elements): a countdown sum
+74.2 -> 77.1 ms (+4%), a multiply-add-mod-mask loop 75.1 -> 79.2 ms
+(+5%), a list sum 40.7 -> 43.0 ms (+6%). Codegen epoch g12.
+
+**A compiled closure may hold a named let.** ([#1519]) `compile-fn!`
+refused a body with `(let loop ((i 0)) ...)`, and the closure stayed
+interpreted. The loop is now compiled as the fn literal the named let
+stands for, a closure of its own whose calls of the loop's name are
+jumps; a 1000-step loop allocates what the same loop written as a
+self-call does.
+
+**`Transformer generate` is faster on a host with a GPU.** ([#1516],
+[#1525]) The kernels a position runs spread their work over many more
+of the GPU's threads: on GPT-2 small an id takes about a third of the
+time it did. The scores are read faster and the greatest is found
+where they are: a greedy generate takes about an eighth less time
+again.
+
+[#1512]: https://github.com/jonruttan/x-lang/pull/1512
+[#1514]: https://github.com/jonruttan/x-lang/pull/1514
+[#1515]: https://github.com/jonruttan/x-lang/pull/1515
+[#1516]: https://github.com/jonruttan/x-lang/pull/1516
+[#1517]: https://github.com/jonruttan/x-lang/pull/1517
+[#1518]: https://github.com/jonruttan/x-lang/pull/1518
+[#1519]: https://github.com/jonruttan/x-lang/pull/1519
+[#1520]: https://github.com/jonruttan/x-lang/pull/1520
+[#1521]: https://github.com/jonruttan/x-lang/pull/1521
+[#1523]: https://github.com/jonruttan/x-lang/pull/1523
+[#1524]: https://github.com/jonruttan/x-lang/pull/1524
+[#1525]: https://github.com/jonruttan/x-lang/pull/1525
+[#1526]: https://github.com/jonruttan/x-lang/pull/1526
+
 ## [0.65.0] - 2026-11-27
 
 **`Table read` and `write` replace `Table from-csv`, and a table can be
