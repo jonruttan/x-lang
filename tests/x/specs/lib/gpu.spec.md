@@ -290,6 +290,26 @@ product saw the row doubled once.
 ---
     (((4.0 8.0)) ((2.0 4.0)))
 
+### a word a kernel wrote is read back
+
+A buffer of words holds a kernel's dimensions, and also what a kernel
+answers that is not a tensor: here a kernel writes the sum of two words
+into a third.
+
+```x
+(import x/num/gpu)
+(if (Gpu available?)
+  (let ((source "#include <metal_stdlib>\nusing namespace metal;\nkernel void sum(device uint* w [[buffer(0)]], uint2 at [[thread_position_in_grid]]) { w[2] = w[0] + w[1]; }")
+        (w (Gpu %words (list 40 2 0))))
+    (Gpu %steps-run (list (Gpu %step (lit sum) source (list w) 1 1)))
+    (let ((r (list (Gpu %word w 2) (Gpu %word w 0))))
+      (Gpu %words-done w)
+      r))
+  (list 42 40))
+```
+---
+    (42 40)
+
 ### two ordinary operands answer an ordinary matrix
 
 ```x

@@ -502,6 +502,7 @@
 ;   store    a position's queries, keys and values written into the block's cache
 ;   attend   the position's attention over the cache's rows up to it, a head a simdgroup
 ;   score    the normed row times each row of the items, a row to a simdgroup
+;   best     the place of the greatest score, in one group
 ;
 ; The GPU works in single precision throughout, where the kernels of the
 ; general pass sum in double: a score differs in its last places between
@@ -541,7 +542,8 @@ kernel void layer(device const float* a [[buffer(0)]],
 
 ; A score: a row of the items times the normed row.  Each simdgroup of 32
 ; threads takes a row, each thread a 32nd of it, so neighbouring threads
-; read neighbouring floats.  dims: the width, the rows.
+; read neighbouring floats, four at a time where the width allows.
+; dims: the width, the rows.
 (def %tf-score-source "#include <metal_stdlib>
 using namespace metal;
 kernel void score(device const float* items [[buffer(0)]],
@@ -552,11 +554,50 @@ kernel void score(device const float* items [[buffer(0)]],
                   uint lane [[thread_index_in_simdgroup]]) {
   uint w = dims[0], row = at.x / 32;
   if (row >= dims[1]) return;
-  device const float* r = items + row * w;
   float sum = 0.0f;
-  for (uint j = lane; j < w; j += 32) sum += r[j] * x[j];
+  if (w % 4 == 0) {
+    device const float4* r = (device const float4*)(items + row * w);
+    device const float4* v = (device const float4*)x;
+    for (uint j = lane; j < w / 4; j += 32) sum += dot(r[j], v[j]);
+  } else {
+    device const float* r = items + row * w;
+    for (uint j = lane; j < w; j += 32) sum += r[j] * x[j];
+  }
   sum = simd_sum(sum);
   if (lane == 0) out[row] = sum;
+}")
+
+; The place of the greatest score, for the pick that wants it: one group
+; of 32 by 32, each thread the greatest of a share of the scores, then the
+; greatest of each simdgroup's and of the group's.  Of equal scores the
+; first is kept, as f32-max-at keeps it.  Where a group is smaller, each
+; group finds it for the whole.  dims: the scores' count.
+(def %tf-best-source "#include <metal_stdlib>
+using namespace metal;
+void best_of(thread float& v, thread uint& i, float ov, uint oi) {
+  if (ov > v || (ov == v && oi < i)) { v = ov; i = oi; }
+}
+kernel void best(device const float* scores [[buffer(0)]],
+                 device uint* place [[buffer(1)]],
+                 device const uint* dims [[buffer(2)]],
+                 uint2 in [[thread_position_in_threadgroup]],
+                 uint2 group [[threads_per_threadgroup]],
+                 uint lane [[thread_index_in_simdgroup]],
+                 uint sg [[simdgroup_index_in_threadgroup]],
+                 uint sgs [[simdgroups_per_threadgroup]]) {
+  threadgroup float values[32];
+  threadgroup uint places[32];
+  uint n = dims[0], t = in.y * group.x + in.x, all = group.x * group.y;
+  float v = -INFINITY;
+  uint i = 0xffffffff;
+  for (uint j = t; j < n; j += all) best_of(v, i, scores[j], j);
+  for (ushort d = 16; d > 0; d /= 2) best_of(v, i, simd_shuffle_down(v, d), simd_shuffle_down(i, d));
+  if (lane == 0) { values[sg] = v; places[sg] = i; }
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  if (t == 0) {
+    for (uint k = 1; k < sgs; k++) best_of(v, i, values[k], places[k]);
+    place[0] = i;
+  }
 }")
 
 ; A norm's grid is one group of 32 by 32: the threads sum a share of the
@@ -684,7 +725,7 @@ kernel void embed(device const float* items [[buffer(0)]],
               (wide (int* 4 width)) (across (int* 3 width)))
           (let ((x (zeros 1 width)) (n (zeros 1 width)) (t (zeros 1 width)) (o (zeros 1 width))
                 (qkv (zeros 1 across)) (h (zeros 1 wide))
-                (place (word (list 0 0)))
+                (place (word (list 0 0))) (best (word (list 0)))
                 (d-width (word (list width))) (d-across (word (list across)))
                 (d-attend (word (list width (int/ width heads))))
                 (d-in (word (list width across))) (d-same (word (list width width)))
@@ -721,14 +762,18 @@ kernel void embed(device const float* items [[buffer(0)]],
                   (let ((all (List append body
                                (list (norm (m %norm))
                                      (Gpu %step (lit score) %tf-score-source
-                                       (list (buf (m %items)) (buf n) (buf scores) (word (list width many))) (int* 32 many) 1))))
+                                       (list (buf (m %items)) (buf n) (buf scores) (word (list width many))) (int* 32 many) 1)
+                                     (Gpu %step (lit best) %tf-best-source
+                                       (list (buf scores) best (word (list many))) 32 32))))
                         (at-scores ((obj-ref f 13) (scores %st))))
                     (pair
                       (fn (_ id from pick)
                         (Gpu %word! place 0 from)
                         (Gpu %word! place 1 id)
                         (Gpu %steps-run (if (null? pick) body all))
-                        (let ((next (if (null? pick) () (pick at-scores many))))
+                        ; the greatest is found on the GPU as the scores are
+                        (let ((next (if (null? pick) ()
+                                      (if (eq? pick %tf-max-at) (Gpu %word best 0) (pick at-scores many)))))
                           ; the scores are held to here, so their address stayed good
                           (do scores next)))
                       (fn (_)
