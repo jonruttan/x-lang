@@ -746,6 +746,127 @@
     (%take-input! z buf start n)
     (%stream-run z #f)))
 
+; --- chunks, as LZMA2 drives the coder ----------------------------------------
+;
+; The .xz container's LZMA2 codes a stream as chunks, each one whole: a copy
+; of bytes into the window, or a run of decisions over a range coder of its
+; own that ends at the size the chunk declares, with no end marker.  A chunk
+; can reset the window, reset the state, or set new properties first, and
+; the decoder lasts from one chunk to the next.  x/codec/unxz reads the
+; chunks' framing and drives a decoder through these.
+
+; A decoder for chunks with a window of dict-size bytes, its properties not
+; yet set.
+(def %chunk-decoder
+  (fn (_ dict-size)
+    (def d (%decoder %empty 0 0))
+    (obj-set! d %DICTSIZE dict-size)
+    (obj-set! d %DSTSIZE 0)
+    (%dict-room! d 1)
+    d))
+
+; The window emptied: what was written is on the output already.
+(def %chunk-dict-reset!
+  (fn (_ d)
+    (obj-set! d %DICTPOS 0)
+    (obj-set! d %DICTHIGH 0)
+    (obj-set! d %GLOBALPOS 0)
+    (obj-set! d %DICTFLUSH 0)
+    (obj-set! d %PREV 0)))
+
+; The state machine at its start, the last four distances each 1 and every
+; probability even.
+(def %chunk-state-reset!
+  (fn (_ d)
+    (obj-set! d %STATE 0)
+    (obj-set! d %REP0 1)
+    (obj-set! d %REP1 1)
+    (obj-set! d %REP2 1)
+    (obj-set! d %REP3 1)
+    (def pr (%probs (obj-ref d %NPROBS)))
+    (obj-set! d %PROBSR pr)
+    (obj-set! d %PROBS (str->ptr pr))))
+
+; lc, lp and pb from one properties byte, as the alone header packs them,
+; and the state reset; #f for a byte LZMA2 does not allow, where lc and lp
+; together are past 4.
+(def %chunk-props!
+  (fn (_ d b)
+    (def lc (int% b 9))
+    (def i (int/ b 9))
+    (def lp (int% i 5))
+    (def pb (int/ i 5))
+    (if (if (int< b 225) (int< (int+ lc lp) 5) #f)
+      (do (obj-set! d %LC lc)
+          (obj-set! d %POSMASK (int- (int<< 1 pb) 1))
+          (obj-set! d %LITMASK (int- (int<< 1 lp) 1))
+          (obj-set! d %NPROBS (int+ %LITERAL (int<< %LITSIZE (int+ lc lp))))
+          (%chunk-state-reset! d)
+          #t)
+      #f)))
+
+; An LZMA chunk: packed bytes of s from start, the coder's first five among
+; them, decoding to unpacked bytes.  The decisions run on the engine the
+; larger of the two sizes chooses -- a chunk of one byte repeated packs 2MB
+; into a few hundred -- and the chunk must end where it says it does: its
+; last decision on its last byte, every byte of it read, and the coder's
+; code 0, as an encoder's flush leaves it.
+(def %chunk-lzma!
+  (fn (_ d s start packed unpacked)
+    (obj-set! d %IN (%at (str->ptr s) start))
+    (obj-set! d %INLEN packed)
+    (obj-set! d %INCNT 0)
+    (obj-set! d %INWAIT 0)
+    (obj-set! d %DONE #f)
+    (def end (int+ unpacked (int+ (obj-ref d %GLOBALPOS) (obj-ref d %DICTPOS))))
+    (obj-set! d %DSTSIZE end)
+    (%rc-init! d)
+    ((%engine-for (if (int< packed unpacked) unpacked packed)) d)
+    (if (int= end (int+ (obj-ref d %GLOBALPOS) (obj-ref d %DICTPOS))) ()
+      (%fail (lit data) "a chunk does not end where it says it does"))
+    (%normalize! d)
+    (if (if (int= packed (obj-ref d %INCNT)) (int= 0 (obj-ref d %CODE)) #f) ()
+      (%fail (lit data) "a chunk's coder does not end with its bytes"))))
+
+; n bytes of s from start into the window as they are, and onto the output.
+(def %chunk-copy!
+  (fn (self d s start n)
+    (if (int< n 1) (%flush! d (obj-ref d %DICTPOS))
+      (do (def i (obj-ref d %DICTPOS))
+          (def room (int- (obj-ref d %DICTSIZE) i))
+          (def k (if (int< n room) n room))
+          (def e (int+ i k))
+          (%dict-room! d e)
+          (mem-copy (%at (obj-ref d %DICT) i) (%at (str->ptr s) start) k)
+          (obj-set! d %PREV (%bref (str->ptr s) (int+ start (int- k 1))))
+          (if (int< (obj-ref d %DICTHIGH) e) (obj-set! d %DICTHIGH e) ())
+          (if (int= e (obj-ref d %DICTSIZE))
+            (do (%flush! d e)
+                (obj-set! d %DICTFLUSH 0)
+                (obj-set! d %DICTPOS 0)
+                (obj-set! d %GLOBALPOS (int+ (obj-ref d %GLOBALPOS) e)))
+            (obj-set! d %DICTPOS e))
+          (self d s (int+ start k) (int- n k))))))
+
+; What the decoder has written since the last take, as (OUT N), and a fresh
+; output for what it writes next.  After a raise, the decisions read whole
+; before the one that failed.
+(def %chunk-take!
+  (fn (_ d)
+    (%flush! d (obj-ref d %DICTPOS))
+    (def out (list (obj-ref d %OUT) (obj-ref d %OUTCNT)))
+    (def o (str-make (obj-ref d %OUTCAP)))
+    (obj-set! d %OUT o)
+    (obj-set! d %OUTP (str->ptr o))
+    (obj-set! d %OUTCNT 0)
+    out))
+
+(def unlzma-chunks
+  (list (pair (lit decoder) %chunk-decoder) (pair (lit dict-reset!) %chunk-dict-reset!)
+        (pair (lit state-reset!) %chunk-state-reset!) (pair (lit props!) %chunk-props!)
+        (pair (lit lzma!) %chunk-lzma!) (pair (lit copy!) %chunk-copy!)
+        (pair (lit take!) %chunk-take!) (pair (lit error?) %lzma-error?)))
+
 ; --- The compiled engine (JIT), adopted only when it proves out --------------
 ;
 ; x/codec/unlzma-jit compiles the decisions: everything %pure-run does after
@@ -929,6 +1050,7 @@
         (sample "(Unlzma jit!)" "#t once the compiled engine has proved itself on this host, #f where none can be built; the output is the same either way"))
       (%jit-try!))))
 
-(doc (provide x/codec/unlzma Unlzma)
+(doc (provide x/codec/unlzma Unlzma unlzma-chunks)
   (example "(do (import x/codec/bytes) (def z (Bytes of-hex \"5d00000004ffffffffffffffff00341949ee8def8c80b1e6f35b7bffffb5c80000\")) (first (rest (rest (Unlzma decode (first z) 0 (Bytes length z))))))" "33")
-  "lzma decompression in pure x-lang, the .lzma \"alone\" format: (Unlzma decode s start n) answers (OUT N USED); stream, feed, finish, done? and rest decode a piece at a time.")
+  (example "(do (import x/codec/unlzma unlzma-chunks) (List map first unlzma-chunks))" "('decoder 'dict-reset! 'state-reset! 'props! 'lzma! 'copy! 'take! 'error?)")
+  "lzma decompression in pure x-lang, the .lzma \"alone\" format: (Unlzma decode s start n) answers (OUT N USED); stream, feed, finish, done? and rest decode a piece at a time. unlzma-chunks is the same coder held across the chunks of LZMA2, by name, for x/codec/unxz.")
