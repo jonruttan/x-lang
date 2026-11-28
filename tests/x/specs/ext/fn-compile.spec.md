@@ -115,8 +115,11 @@ own mixed paths end that way, (int- acc x) with acc a bigint.
 
 ```x
 (import x/num/bigint)
+(import x/core/doors int/ int<<)
 (def %fc-big-env (Module env (lit x/num/bigint)))
-(def %fc-big (+ 9223372036854775807 1))
+; The largest integer a word holds, and one past it, a bigint, on any word.
+(def %fc-int-max (int- (int<< 1 (int- (int* 8 %word-size) 1)) 1))
+(def %fc-big (+ %fc-int-max 1))
 (def %fc-big-before (list (- %fc-big 8) (+ %fc-big 8) (* %fc-big 3)))
 (compile-fn! (lit %big-sub2) (eval (lit %big-sub2) %fc-big-env))
 (compile-fn! (lit %big-add2) (eval (lit %big-add2) %fc-big-env))
@@ -129,12 +132,14 @@ own mixed paths end that way, (int- acc x) with acc a bigint.
 (def %fc-e (compile-fn! (lit %fc-doors) %fc-doors))
 (write (list (%fc-e state)
              (equal? %fc-big-before (list (- %fc-big 8) (+ %fc-big 8) (* %fc-big 3)))
-             (/ (- %fc-big 8) 10)
+             (= (- %fc-big 8) (int- %fc-int-max 7))
+             (= (/ (- %fc-big 8) 10) (int/ (int- %fc-int-max 7) 10))
              (equal? %fc-doors-before (%fc-doors-all))
-             (%fc-doors %fc-big 5)))
+             (= (first (%fc-doors %fc-big 5)) (+ (+ %fc-big %fc-big) 4))
+             (rest (%fc-doors %fc-big 5))))
 ```
 ---
-    ('compiled #t 922337203685477580 #t (18446744073709551620 #f #t 'yes))
+    ('compiled #t #t #t #t #t (#f #t 'yes))
 
 ### + - < > <= >= = on two integers answer as the interpreter does
 
