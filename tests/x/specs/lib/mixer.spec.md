@@ -385,6 +385,20 @@ pure-x loops and again with the compiled ones, byte for byte.
 ---
     (0 #f)
 
+### a detune of whole octaves plays the note those octaves away, one or many
+
+```x
+(do (import x/audio/mixer) (import x/core/doors mem-cmp str->ptr)
+  (def tone (fn (_ note cents) (list (list (list (lit note) note) (list (lit detune) cents) (list (lit env) (list 0 90) (list 100 90))))))
+  (def block (fn (_ note cents) ((fn (_ m) (do (Mixer play! m (tone note cents) 0 100) (Mixer block! m))) (Mixer make 8000 256))))
+  (def a3 (block "A3" 0))
+  (list (mem-cmp (str->ptr a3) (str->ptr (block "A4" -1200)) 1024)
+        (mem-cmp (str->ptr a3) (str->ptr (block "A7" -4800)) 1024)
+        (mem-cmp (str->ptr (block "A4" 0)) (str->ptr (block "A3" 1200)) 1024)))
+```
+---
+    (0 0 0)
+
 ### a filter held at a percent plays as a cut of that percent, and a closing one dulls the voice
 
 ```x
