@@ -5,6 +5,96 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-11-27
+
+**`Table read` and `write` replace `Table from-csv`, and a table can be
+written.** ([#1503]) Breaking. `(Table read 'csv text)` reads what
+`(Table from-csv text)` read, and `from-csv` is gone. `(t write 'csv)`
+answers the table as csv text, a missing value an empty field. Both
+take a separator after the format, so `"\t"` reads and writes
+tab-separated text. `(Table formats)` lists the formats.
+
+**`x -l NAME` arms every bundle in a chain of `requires-bundle`
+rows.** ([#1509]) With A requiring B and B requiring C, B was left off
+the import path, and only a second `-l B` put it back. Chains of any
+depth and diamonds now arm each bundle once.
+
+**A bundle needs no `tests/harness.x`.** ([#1510]) The bundle kit's
+harness generator writes the boot and the import roots for a bundle
+with none; its specs import what they use.
+
+**`Frequency convolver`: convolution with a long impulse, a block at a
+time, in a mixer's own words.** ([#1508]) `(Frequency convolver ir
+count block)` cuts an impulse into transformed pieces, and `(c
+convolve! mix stride offset gain)` adds a block of one channel
+convolved with it, the tail carried into the blocks after. A 2 s
+impulse in stereo takes 7.4 ms of a 23.2 ms block on arm64. `twin`
+gives the other channel's convolver over the same pieces.
+
+**`Frequency spectrum!`: a mixer block's frames to bands, in place,
+fast enough to run every block.** ([#1507]) `(p spectrum! frames count
+channel out)` reads signed 16-bit stereo frames straight from memory,
+as `(Mixer block! m)` answers them, through a Hann window and the
+forward transform, and sums each of OUT's log-spaced bands' power into
+a Float. On arm64 a 2048-point spectrum into 64 bands takes 2.0 ms,
+under a tenth of a 23.2 ms block; only the bands become Floats.
+
+**Tracker songs can give their tick rate, and change their time from a
+row.** ([#1502]) `(tick-rate NUM DEN)` gives a song's ticks a second in
+place of its beats a minute, and the cell effects `m NUM,DEN`, `k N` and
+`h N` set the tick rate, the ticks a row and a row held N rows more,
+from their row on. Rows start at their exact frame, with no drift.
+
+**A song's numbers can be names that follow its tempo.** ([#1501])
+x/audio/tracker takes `(let NAME EXPR)` and the song's own `bpm`,
+`rows`, `ticks`, `row`, `beat` and `tick` (lengths in ms, at the tension
+and pace now) wherever an instrument, a song effect or a cell's effect
+takes a number, with `+ - * / min max` sums in instruments and song
+effects: `(echo (* 2 row) 30 16)` follows the tempo as tension speeds
+it, and `C4/egap,50,3` echoes by a let. A song effect whose length
+changes is put again, so its tail starts over; `Tracker names` answers
+the names now.
+
+**`Gzip` writes gzip members without libz.** ([#1498]) `x/codec/gzip`
+answers a member's bytes a piece at a time (`Gzip stream`, `Gzip
+feed`): the header, the compressed pieces, and the CRC-32 and length,
+as regions.
+
+**A compiled closure may call a primitive it fetches at the call.**
+([#1506]) `compile-fn!` refused a body with a call such as
+`((prim-ref (lit type) (lit of)) x)`, and the closure stayed
+interpreted. The primitive is now fetched when the closure is compiled
+and called with values, when it is one the engine's ISA manifest does
+not label spine. Among the methods of xenon's classes, 57 more pass the
+rewrite.
+
+**`Transformer generate` starts faster on a host with a GPU.**
+([#1505]) A model keeps its GPU work from one generate to the next, and
+the first id is picked by a compiled kernel: the first generate of a
+process takes under half the time it did.
+
+**`Tensor ->list` answers an axis of any length.** ([#1505]) An axis of
+about 30,000 elements or more ended the process.
+
+**Html parse makes about a fifth fewer objects.** ([#1500]) Tag names it
+knows are symbols, looked up once.
+
+**Str8 join with an empty separator makes about half the objects.**
+([#1499])
+
+[#1498]: https://github.com/jonruttan/x-lang/pull/1498
+[#1499]: https://github.com/jonruttan/x-lang/pull/1499
+[#1500]: https://github.com/jonruttan/x-lang/pull/1500
+[#1501]: https://github.com/jonruttan/x-lang/pull/1501
+[#1502]: https://github.com/jonruttan/x-lang/pull/1502
+[#1503]: https://github.com/jonruttan/x-lang/pull/1503
+[#1505]: https://github.com/jonruttan/x-lang/pull/1505
+[#1506]: https://github.com/jonruttan/x-lang/pull/1506
+[#1507]: https://github.com/jonruttan/x-lang/pull/1507
+[#1508]: https://github.com/jonruttan/x-lang/pull/1508
+[#1509]: https://github.com/jonruttan/x-lang/pull/1509
+[#1510]: https://github.com/jonruttan/x-lang/pull/1510
+
 ## [0.64.0] - 2026-11-25
 
 **A base that loads `x/tui/width` can be imaged on x86-64 Linux again.**
