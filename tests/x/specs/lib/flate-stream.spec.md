@@ -131,3 +131,36 @@ block of type 3 raises at once.
 ```
 ---
     (#t #f ('value "Inflate: a block of type 3"))
+
+## flushed a piece at a time
+
+### each piece flushed reads back whole as it comes
+
+A packet protocol feeds one piece and flushes it: what the two give is
+all a reader needs for every byte fed so far, and the stream goes on.
+The second piece repeats the first, but matches reach only inside a
+piece, so it costs as much.
+
+```x
+(let ((w (Deflate stream)) (z (Inflate stream)) (t (%fs-text 3000)))
+  (let ((piece (fn (_ at n)
+                 (let ((a (Deflate feed w t at n #f)) (b (Deflate flush w)))
+                   (let ((both (%fs-join (list (pair (first a) (first (rest a))) (pair (first b) (first (rest b)))))))
+                     (let ((o (Inflate feed z (first both) 0 (rest both))))
+                       (list (first (rest o)) (= 0 (%fs-cmp (%fs-at t at) (%fs-ptr (first o)) n)))))))))
+    (write (list (piece 0 1000) (piece 1000 1000) (piece 2000 1000) (Inflate done? z)))))
+```
+---
+    ((1000 #t) (1000 #t) (1000 #t) #f)
+
+### a flush on its own is the empty stored block
+
+Nothing waiting: three bits of header padded to a byte, then LEN 0 and
+NLEN 65535.
+
+```x
+(let ((b (Deflate flush (Deflate stream))))
+  (write (list (first (rest b)) (List map (fn (_ i) (%fs-ref (%fs-ptr (first b)) i 1)) (list 0 1 2 3 4)))))
+```
+---
+    (5 (0 0 0 255 255))

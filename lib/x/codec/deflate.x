@@ -647,10 +647,24 @@
     (obj-set! w %OUTCNT 0)
     (%piece! w (%at (str->ptr buf) start) n (%engine-for n) final?)
     (if final? (%align! w) ())
+    (%stream-out w)))
+
+; What the writer gained since its count was last set to none, as (OUT N).
+(def %stream-out
+  (fn (_ w)
     (def cnt (obj-ref w %OUTCNT))
     (def r (str-make (if (int< cnt 1) 1 cnt)))
     (if (int< 0 cnt) (mem-copy (str->ptr r) (obj-ref w %OUTP) cnt) ())
     (list r cnt)))
+
+; The stream so far brought to a byte boundary, as zlib's Z_SYNC_FLUSH does:
+; an empty stored block, not final, whose LEN and NLEN are 00 00 FF FF.
+; A reader then has every byte written so far.
+(def %stream-flush
+  (fn (_ w)
+    (obj-set! w %OUTCNT 0)
+    (%stored! w () 0 0 #f)
+    (%stream-out w)))
 
 (def %compress!
   (fn (_ w src n) (%compress-with! w src n (%engine-for n))))
@@ -797,7 +811,7 @@
     (%answer w)))
 
 (def-class Deflate ()
-  (doc "DEFLATE streams written in pure x-lang: stored, or compressed with LZ77 and Huffman codes as zlib's deflate does at its default level. Each writer answers (OUT N): a byte region and how many of its bytes the stream is. A raw stream can also be written a piece at a time: stream, feed."
+  (doc "DEFLATE streams written in pure x-lang: stored, or compressed with LZ77 and Huffman codes as zlib's deflate does at its default level. Each writer answers (OUT N): a byte region and how many of its bytes the stream is. A raw stream can also be written a piece at a time: stream, feed, flush."
     (example "(first (rest (Deflate stored \"abc\")))" "8"))
   (static
     (method raw (self (param s STRING "The bytes to compress")
@@ -838,6 +852,11 @@
         (returns LIST "(OUT N): a region and how many of its bytes the stream gained")
         (example "(< (first (rest (Deflate feed (Deflate stream) \"abcabcabcabcabcabc\" 0 18 #t))) 18)" "#t"))
       (%stream-feed w s start n final))
+    (method flush (self (param w VECTOR "A (Deflate stream)"))
+      (doc "Bring the stream to a byte boundary, as zlib's Z_SYNC_FLUSH does: the bits waiting are written, then an empty stored block that is not final (00 00 FF FF after them). A reader then has everything fed so far, and the stream goes on: what SSH and other packet protocols want of one stream across their packets."
+        (returns LIST "(OUT N): a region and how many of its bytes the stream gained")
+        (example "(first (rest (Deflate flush (Deflate stream))))" "5"))
+      (%stream-flush w))
     (method jit! (self)
       (doc "Build and adopt the compiled matcher and token writer (JIT; ARM64 and x86-64 backends) now, if the streams they write for the check inputs are byte for byte the pure-x encoder's. Idempotent. Answers #t when the engine is active, #f when unavailable -- the pure-x encoder carries on, with the same output. raw, zlib and feed build it on their own for an input of 16KB or more."
         (returns BOOL "#t when the compiled engine is active")
