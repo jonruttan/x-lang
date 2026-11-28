@@ -48,7 +48,7 @@
 (import x/num/tensor)
 (import x/num/matrix)
 (import x/sys/darwin/metal)
-(import x/core/doors image-transient! int* int+ int->ptr int< int= mem-copy obj-ref ptr->int ptr-set!)
+(import x/core/doors image-transient! int* int+ int->ptr int< int= mem-copy obj-ref ptr->int ptr-ref ptr-set!)
 
 (def-class Gpu ()
   (doc "Tensor arithmetic run on the host's GPU, in f32, through whichever backend is available: Metal on macOS."
@@ -309,6 +309,13 @@ kernel void product(device const float* a [[buffer(0)]],
         (sample "(Gpu %word! buf 0 7)" "nil"))
       (ptr-set! ((Gpu %need-backend) pointer buf) (int* 4 i) value 4)
       ())
+
+    (method %word (self (param buf INTEGER "A buffer from %words")
+                        (param i INTEGER "Which word"))
+      (doc "A 32-bit word of a buffer of them, as a kernel left it."
+        (returns INTEGER "The word, from 0")
+        (sample "(Gpu %word buf 0)" "7"))
+      (ptr-ref ((Gpu %need-backend) pointer buf) (int* 4 i) 4))
 
     (method %words-done (self (param buf INTEGER "A buffer from %words"))
       (doc "Give a buffer of words back."
