@@ -36,7 +36,8 @@
 ; the window first serves the sockets without waiting: a new connection gets
 ; the page, or becomes the page's WebSocket, which replaces any before it and
 ; is sent the size, the title, the open streams and the last frame.  A page
-; that goes away is waited for again; it is not a close event.
+; that goes away is waited for again; it is not a close event.  A page served
+; over https, by a proxy in front, opens its socket as wss on the same host.
 ;
 ; A browser enters fullscreen only within a few seconds of a key or a click,
 ; so fullscreen! asked for after a key works, and one asked for later waits
@@ -107,7 +108,7 @@ var src=ac.createBufferSource();src.buffer=ab;src.connect(ac.destination);var t=
 src.onended=function(){var i=s.nodes.indexOf(src);if(i>=0)s.nodes.splice(i,1);};}
 function data(buf){var b=new Uint8Array(buf),v=new DataView(buf);if(b[0]==70){if(img&&b.length>=1+W*H*4){img.data.set(b.subarray(1,1+W*H*4));g.putImageData(img,0,0);}}
 else if(b[0]==82){var y=v.getUint32(1),n=v.getUint32(5);if(img&&y+n<=H&&b.length>=9+n*W*4){img.data.set(b.subarray(9,9+n*W*4),y*W*4);g.putImageData(img,0,0,0,y,W,n);}}else if(b[0]==65)play(b[1],buf);}
-function connect(){ws=new WebSocket('ws://'+location.host+'/socket');ws.binaryType='arraybuffer';ws.onopen=function(){told=0;dens();};
+function connect(){ws=new WebSocket((location.protocol=='https:'?'wss://':'ws://')+location.host+'/socket');ws.binaryType='arraybuffer';ws.onopen=function(){told=0;dens();};
 ws.onmessage=function(e){if(typeof e.data=='string')control(e.data.split(' '));else data(e.data);};
 ws.onclose=function(){ws=null;setTimeout(connect,1000);};}
 function wake(){if(!ac){var A=window.AudioContext||window.webkitAudioContext;if(A)ac=new A();}if(ac&&ac.state=='suspended')ac.resume();if(want)full(true);}
