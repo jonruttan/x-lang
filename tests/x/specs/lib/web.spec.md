@@ -75,6 +75,15 @@ on port 0 and reads the port back with local-port.
 ---
     ("HTTP/1.1 200 OK" "HTTP/1.1 404 No" #t)
 
+### a page served over https opens its socket as wss, so a browser does not block it
+
+```x
+(do (import x/sys/web)
+  (not (null? (Str8 index-of "(location.protocol=='https:'?'wss://':'ws://')+location.host" (Web %page)))))
+```
+---
+    #t
+
 ## the WebSocket
 
 ### the page's socket is told the window's state, its keys come back as events, and a frame goes to it
