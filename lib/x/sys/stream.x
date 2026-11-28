@@ -13,7 +13,8 @@
 ; set with `set-first!`. NOT first-int/set-first-int! (those read/write a raw
 ; stack-int and corrupt the atom cell -- that is intrinsics.x's stale %stderr).
 ;
-; File-backed streams need the radon dialect (File open/close/write -> syscall).
+; File-backed streams go through File (x/sys/file), which this module imports,
+; so they work in every dialect.
 (module x/sys/stream)
 
 (import x/sys/file)
@@ -50,7 +51,7 @@
   (doc "A first-class output stream over a file descriptor: write to it, or redirect display/write output through it for the duration of a thunk."
     (note "Pure X: display/write target the base's fileout fd (an atom among the io `files` fields, whose rows the layout contract names); a Stream just pushes/pops that fd.")
     (note "(Stream to-fd fd) wraps an existing fd (not owned). (Stream to-file path) opens path for writing and OWNS it -- (close) closes it. (Stream stdout)/(Stream stderr) are conveniences.")
-    (note "File-backed streams (to-file, write, with-file) need the radon dialect (File open/close/write -> syscall/make-str).")
+    (note "File-backed streams (to-file, write, with-file) go through File, which this module imports; they work in every dialect.")
     (sample "(Stream with-file \"grid.svg\" (fn (_) (grid ->svg)))" "saves whatever (grid ->svg) displays into grid.svg")
     (sample "(let ((s (Stream to-file \"out.txt\"))) (s with (fn (_) (display \"hi\"))) (s close))" "writes \"hi\" to out.txt, then closes it"))
 
@@ -66,7 +67,7 @@
       (new-from self (list 'fd fd 'owned? ())))
 
     (method to-file (self (param path STRING "File path to open for writing"))
-      (doc "Open PATH for writing (wronly|creat|trunc) and wrap its fd in an OWNED stream -- (close) closes the file. Needs the radon dialect."
+      (doc "Open PATH for writing (wronly|creat|trunc) and wrap its fd in an OWNED stream -- (close) closes the file."
         (returns Stream "An owned stream writing to PATH")
         (note "A newly created file gets mode 0644 (File open's default perm); open via File directly if you need other permission bits.")
         (sample "(Stream to-file \"grid.svg\")" "an owned stream that truncates/creates grid.svg"))
@@ -123,7 +124,7 @@
 
   (method write (self (param data STRING "Bytes to write")
                       (param size INTEGER "Number of bytes"))
-    (doc "Write SIZE bytes of DATA directly to the stream's fd. Needs the radon dialect."
+    (doc "Write SIZE bytes of DATA directly to the stream's fd, through File write."
       (returns INTEGER "Bytes written, or negative on error")
       (sample "((Stream stderr) write \"oops\\n\" 5)" "5, with oops on stderr"))
     (File write (field 'fd) data size))
@@ -143,7 +144,7 @@
     (if (field 'owned?) (File close (field 'fd)) ())))
 
 (doc (provide x/sys/stream Stream)
-  (note "Redirection is pure X -- push/pop the base's fileout fd (an atom among the io `files` fields); no C primitive. File targets need the radon dialect.")
+  (note "Redirection is pure X -- push/pop the base's fileout fd (an atom among the io `files` fields); no C primitive. File targets go through File, imported here.")
   (example "((Stream stderr) fd)" "2")
   (sample "(Stream with-file \"out.txt\" (fn (_) (display \"hi\")))" "writes hi to out.txt")
   "Output redirection as first-class Streams: to-fd/to-file/stdout/stderr, (s with thunk)/write/display/close, plus the with-fd / with-file helpers.")
