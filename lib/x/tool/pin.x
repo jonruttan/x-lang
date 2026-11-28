@@ -1011,6 +1011,25 @@
                     ((if (pair? (rest (first forms))) (symbol? (first (rest (first forms)))) #f)
                       (self (rest forms) name dialect req entry))
                     (#t (Pin %pin-bad "grammar needs a name symbol"))))
+                ; (payload "PATH" ...) -- what the tarball carries beside
+                ; lib/; the roll and the bundle tool read the paths.
+                ((eq? (first (first forms)) 'payload)
+                  (match
+                    ((if (pair? (rest (first forms)))
+                       ((fn (self ps) (if (null? ps) #t (if (str? (first ps)) (self (rest ps)) #f)))
+                        (rest (first forms)))
+                       #f)
+                      (self (rest forms) name dialect req entry))
+                    (#t (Pin %pin-bad "payload needs one or more path strings"))))
+                ; (repository "OWNER/REPO") -- where the bundle is kept,
+                ; which its release names; the bundle tool reads it.
+                ((eq? (first (first forms)) 'repository)
+                  (match
+                    ((if (pair? (rest (first forms)))
+                       (if (str? (first (rest (first forms)))) (null? (rest (rest (first forms)))) #f)
+                       #f)
+                      (self (rest forms) name dialect req entry))
+                    (#t (Pin %pin-bad "repository needs one OWNER/REPO string"))))
                 (#t (Pin %pin-bad (Str8 append "unknown form in bundle.xon: "
                                     (symbol->str (first (first forms)))))))))
       (%go forms () () () ()))

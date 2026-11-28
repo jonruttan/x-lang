@@ -272,6 +272,16 @@ A library's repository is not named for its bundle: `gfx` lives at
 `jonruttan/x-NAME`, where the langs that declared their requirements before
 this row live.
 
+A bundle names the repository it is kept in, which its releases are
+published from:
+
+```x
+(repository "jonruttan/x-lib-gfx")
+```
+
+The bundle tool's `release` reads it; acquisition checks only its shape,
+one string, as it does for `(payload …)` (below).
+
 `(dialect …)` is a **requirement**, not a preference: a lang that calls
 `x/sys/socket` needs radon, and declaring helium means it dies at boot on a
 missing import rather than at acquisition on a legible refusal.

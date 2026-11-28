@@ -388,3 +388,37 @@ is named here (docs/lang-contract.md, "The declaration").
 ```
 ---
     #t
+
+### payload and repository rows are the bundle tool's, passed over
+
+```x
+(do
+  (import x/tool/pin)
+  (display (%assoc-get 'entry (Pin %pin-lang-parse (Pin %pin-forms
+    "(name \"x\") (payload \"data\" \"NOTICE\") (repository \"o/x-x\") (entry run)")))))
+```
+---
+    (run)
+
+### a payload with no path, or a path that is not a string, is a loud error
+
+```x
+(do
+  (import x/tool/pin)
+  (display (list (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(name \"x\") (payload)"))))
+                 (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(name \"x\") (payload \"data\" art)")))))))
+```
+---
+    (#t #t)
+
+### a repository that is not one string is a loud error
+
+```x
+(do
+  (import x/tool/pin)
+  (display (list (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(name \"x\") (repository)"))))
+                 (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(name \"x\") (repository o/x)"))))
+                 (throws? (fn (_) (Pin %pin-lang-parse (Pin %pin-forms "(name \"x\") (repository \"o/x\" \"p/y\")")))))))
+```
+---
+    (#t #t #t)
