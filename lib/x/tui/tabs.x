@@ -8,13 +8,12 @@
 (module x/tui/tabs)
 (import x/type/class)
 (import x/type/vector)
-(import x/codec/utf8 utf8-cp-at utf8-width)
-(import x/tui/width char-width)
+(import x/tui/width text-cut)
 (import x/tui/style)
 (import x/tui/screen)
 (import x/tui/window)
 
-(import x/core/doors int% int+ int/ int< obj-make obj-ref obj-set! str-byte-len str-byte-sub)
+(import x/core/doors int% int+ int/ int< obj-make obj-ref obj-set!)
 (def %tb-cvt (prim-ref (lit convert) (lit to)))
 (def %tb-string (Type named STRING))
 (def %tb-num (fn (_ n) (%tb-cvt n %tb-string 10)))
@@ -29,13 +28,6 @@
 (def %tb-nth (fn (self k l) (match ((= k 0) (first l)) (#t (self (int+ k -1) (rest l))))))
 (def %tb-drop (fn (self k l) (match ((= k 0) (rest l)) (#t (pair (first l) (self (int+ k -1) (rest l)))))))
 (def %tb-count (fn (_ t) (%length (%tb-get t 0))))
-; The bytes of S, from I, that fit in W columns: their end.
-(def %tb-fit
-  (fn (self s i w)
-    (match ((= i (str-byte-len s)) i)
-           ((int< w (char-width (utf8-cp-at s i))) i)
-           (#t (self s (int+ i (utf8-width s i)) (int+ w (- 0 (char-width (utf8-cp-at s i)))))))))
-(def %tb-cut (fn (_ s w) (str-byte-sub s 0 (%tb-fit s 0 w))))
 (def %tb-draw-bar
   (fn (_ t screen row)
     (def cols (Screen cols screen))
@@ -45,7 +37,7 @@
     ((fn (go ws k col)
        (match ((eq? ws ()) ())
               (#t (do (Screen put screen row col
-                        (%tb-cut (%str-concat (list " " (%tb-num (int+ k 1)) " " (Window title (first ws)) " ")) each)
+                        (text-cut (%str-concat (list " " (%tb-num (int+ k 1)) " " (Window title (first ws)) " ")) each)
                         (match ((= k (%tb-get t 1)) %tb-current) (#t %tb-bar)))
                       (go (rest ws) (int+ k 1) (int+ col each))))))
      (%tb-get t 0) 0 0)))

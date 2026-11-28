@@ -17,7 +17,7 @@
 (import x/type/class)
 (import x/codec/utf8 utf8-cp-at utf8-width)
 
-(import x/core/doors char->int ffi-dlopen ffi-dlsym image-transient! int* int+ int- int->ptr int/ int< ptr->int ptr-call ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-make)
+(import x/core/doors char->int ffi-dlopen ffi-dlsym image-transient! int* int+ int- int->ptr int/ int< int= ptr->int ptr-call ptr-ref ptr-set! str->ptr str-byte-len str-byte-ref str-byte-sub str-make)
 
 (def %wd-ranges (list
   768 879 0 1155 1161 0 1425 1469 0 1471 1471 0 1473 1474 0 1476 1477 0
@@ -183,12 +183,91 @@
 ; S's width.
 (def text-width (fn (_ s) (%wd-text s 0 (str-byte-len s) 0)))
 
+; --- fitting ---------------------------------------------------------------
+; Text is fitted by whole characters: one that would straddle the edge is
+; left out, so a fitted text can be a cell short of the width asked for.
+
+; The end of the bytes of S, from I, that fit in W cells.
+(def text-fit
+  (fn (self s i w)
+    (match ((int= i (str-byte-len s)) i)
+           (#t ((fn (_ n)
+                  (match ((int< w n) i)
+                         (#t (self s (int+ i (utf8-width s i)) (int- w n)))))
+                (char-width (utf8-cp-at s i)))))))
+; The start of the bytes of S, from I, that fit in W cells, S's bytes from
+; I taking N: the characters from the start are passed until the rest fit.
+(def %wd-fit-start
+  (fn (self s i n w)
+    (match ((int< w n) (self s (int+ i (utf8-width s i)) (int- n (char-width (utf8-cp-at s i))) w))
+           (#t i))))
+; The leading part of S that fits in W cells; the trailing part.
+(def text-cut (fn (_ s w) (str-byte-sub s 0 (text-fit s 0 w))))
+(def text-cut-start
+  (fn (_ s w)
+    ((fn (_ i) (str-byte-sub s i (int- (str-byte-len s) i)))
+     (%wd-fit-start s 0 (text-width s) w))))
+(def %wd-spaces
+  (fn (self n) (match ((int< n 1) "") (#t (%str-concat (list " " (self (int- n 1))))))))
+; S in exactly W cells: cut to fit, then spaces on the side ALIGN leaves.
+(def text-pad
+  (fn (_ s w align)
+    ((fn (_ t)
+       ((fn (_ n)
+          (match ((eq? align (lit left)) (%str-concat (list t (%wd-spaces n))))
+                 ((eq? align (lit right)) (%str-concat (list (%wd-spaces n) t)))
+                 ((eq? align (lit centre))
+                   (%str-concat (list (%wd-spaces (int/ n 2)) t (%wd-spaces (int- n (int/ n 2))))))
+                 (#t (Err raise (lit value) "Width pad: an alignment is left, right or centre" align))))
+        (int- w (text-width t))))
+     (text-cut s w))))
+; S in at most W cells: S when it fits, else MARK in place of what is cut
+; from the END named.
+(def text-elide
+  (fn (_ s w mark end)
+    (match ((not (int< w (text-width s))) s)
+           (#t ((fn (_ room)
+                  (match ((int< room 1) (text-cut mark w))
+                         ((eq? end (lit end)) (%str-concat (list (text-cut s room) mark)))
+                         ((eq? end (lit start)) (%str-concat (list mark (text-cut-start s room))))
+                         (#t (Err raise (lit value) "Width elide: an end is start or end" end))))
+                (int- w (text-width mark)))))))
+
 (def-class Width ()
-  (doc "Terminal cell widths: how many columns a character, or a UTF-8 string, takes on a terminal, as tmux counts them."
+  (doc "Terminal cell widths: how many columns a character, or a UTF-8 string, takes on a terminal, as tmux counts them; and text fitted to a width by whole characters."
     (example "(Width char 65)" "1")
     (example "(Width text \"a\\xe4\\xb8\\xadb\")" "4")
-    (see char) (see text))
+    (example "(Width pad \"ab\" 5 'right)" "\"   ab\"")
+    (see char) (see text) (see cut) (see pad) (see elide))
   (static
+    (method cut (self (param s STRING "UTF-8 text") (param w INTEGER "Columns"))
+      (doc "The leading part of S that fits in W columns. A wide character that would straddle the edge is left out, so the answer can be a column short."
+        (returns STRING "The start of S, at most W columns wide")
+        (example "(Width cut \"hello\" 3)" "\"hel\"")
+        (example "(Width cut \"a\\xe4\\xb8\\xadb\" 2)" "\"a\""))
+      (text-cut s w))
+    (method cut-start (self (param s STRING "UTF-8 text") (param w INTEGER "Columns"))
+      (doc "The trailing part of S that fits in W columns: what a field shows of a text longer than itself."
+        (returns STRING "The end of S, at most W columns wide")
+        (example "(Width cut-start \"hello\" 3)" "\"llo\""))
+      (text-cut-start s w))
+    (method pad (self (param s STRING "UTF-8 text") (param w INTEGER "Columns")
+                      (param align SYMBOL "left, right or centre"))
+      (doc "S in exactly W columns: cut to fit, then padded with spaces, after it for left, before it for right, on both sides for centre with the odd one after. Raises a label 'value for another alignment."
+        (returns STRING "Text W columns wide")
+        (example "(Width pad \"ab\" 5 'left)" "\"ab   \"")
+        (example "(Width pad \"ab\" 5 'centre)" "\" ab  \"")
+        (example "(Width pad \"hello\" 3 'right)" "\"hel\""))
+      (text-pad s w align))
+    (method elide (self (param s STRING "UTF-8 text") (param w INTEGER "Columns")
+                        (param mark STRING "What stands for the part cut, an ellipsis")
+                        (param end SYMBOL "The end cut: end or start"))
+      (doc "S in at most W columns: S itself when it fits, else MARK in place of what is cut from END. With no room for more than MARK, as much of MARK as fits. Raises a label 'value for another end."
+        (returns STRING "Text at most W columns wide")
+        (example "(Width elide \"hello world\" 8 \"...\" 'end)" "\"hello...\"")
+        (example "(Width elide \"hello world\" 8 \"...\" 'start)" "\"...world\"")
+        (example "(Width elide \"hello\" 8 \"...\" 'end)" "\"hello\""))
+      (text-elide s w mark end))
     (method char (self (param cp INTEGER "A code point"))
       (doc "The cells a code point takes: 2 for East Asian wide and fullwidth characters and wide emoji, 0 for combining marks, format and control characters, 1 for the rest."
         (returns INTEGER "0, 1 or 2")
@@ -201,4 +280,4 @@
         (example "(Width text \"caf\\xc3\\xa9\")" "4"))
       (text-width s))))
 
-(provide x/tui/width Width char-width text-width)
+(provide x/tui/width Width char-width text-width text-fit text-cut text-cut-start text-pad text-elide)

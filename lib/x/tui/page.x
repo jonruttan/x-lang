@@ -32,8 +32,8 @@
 (module x/tui/page)
 (import x/type/class)
 (import x/type/vector)
-(import x/codec/utf8 utf8-cp-at utf8-width)
-(import x/tui/width char-width text-width)
+(import x/codec/utf8 utf8-width)
+(import x/tui/width text-width text-fit)
 (import x/tui/style)
 (import x/tui/screen Screen screen-put! screen-fill! screen-row-cells screen-row!)
 (import x/protocol/str/str8 str-find-byte)
@@ -219,12 +219,6 @@
            (first pieces))))))
 
 ; --- tokens to lines -------------------------------------------------------
-; The first bytes of S, from I, that fit in W columns: their end.
-(def %pg-fit
-  (fn (self s i w)
-    (match ((int= i (str-byte-len s)) i)
-           ((int< w (char-width (utf8-cp-at s i))) i)
-           (#t (self s (int+ i (utf8-width s i)) (int+ w (int- 0 (char-width (utf8-cp-at s i)))))))))
 (def %pg-frags-width
   (fn (self frags) (match ((eq? frags ()) 0) (#t (int+ (%pg-4th (first frags)) (self (rest frags)))))))
 ; Tokens laid out WIDTH wide: lines, in order.
@@ -236,7 +230,7 @@
     ; A fragment wider than what is left of the line, broken where it runs out.
     (def broken! (fn (go f)
       (def s (first f))
-      (def e (%pg-fit s 0 (int+ width (int- 0 col))))
+      (def e (text-fit s 0 (int+ width (int- 0 col))))
       (match
         ((int= e (str-byte-len s)) (run! s (%pg-2nd f) (%pg-3rd f) (text-width s)))
         ((match ((int= e 0) (int= col 0)) (#t #f))
@@ -303,7 +297,7 @@
                     (#t (self (pair (str-byte-sub s e (int+ (str-byte-len s) (int- 0 e))) (rest ls)) width
                               (pair (list (list (str-byte-sub s 0 e) 0 ())) out)))))
                 ((fn (_ e) (match ((match ((int= e 0) (int< 0 (str-byte-len s))) (#t #f)) (utf8-width s 0)) (#t e)))
-                 (%pg-fit s 0 width))))
+                 (text-fit s 0 width))))
              (first ls)))))))
 
 ; --- blocks to lines -------------------------------------------------------
