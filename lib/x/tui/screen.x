@@ -26,6 +26,11 @@
 ; line once and puts it back on the next frame.
 
 (module x/tui/screen)
+
+; A program that draws a terminal spends its time here, a call a cell: an
+; image built with (image compiled) compiles this module along with the
+; bundle's own.
+(def image-compiled #t)
 (import x/type/class)
 (import x/type/vector)
 (import x/codec/utf8 utf8-cp-at utf8-width utf8-encode)

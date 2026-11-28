@@ -939,6 +939,30 @@ fcmk/lib is under another root, and its top level says
 ---
     (('lib-inc) ('compiled) 5 'prim)
 
+### x/tui/screen says image-compiled, every closure of it compiles, and a frame renders as it did
+
+A screen's render runs a call a cell, so an image built with
+`(image compiled)` carries it compiled: no closure of it may be refused.
+
+```x
+(import x/tui/screen)
+(def %fc-frame
+  (fn (_ text)
+    (def s (Screen make 3 12))
+    (Screen render s)
+    (Screen put s 0 0 text 0) (Screen put s 1 2 "link" 4) (Screen put s 2 0 "é 漢 x" 1)
+    (Screen fill s 1 8 3 16)
+    (Screen render s)))
+(def %fc-before (list (%fc-frame "alpha") (%fc-frame "bravo")))
+(def %fc-sc (compile-module! (lit x/tui/screen)))
+(write (list (eval (lit image-compiled) (Module env (lit x/tui/screen)))
+             (List filter (fn (_ e) (not (eq? (e state) (lit compiled)))) %fc-sc)
+             (Fn label (eval (lit %sc-emit) (Module env (lit x/tui/screen))))
+             (equal? %fc-before (list (%fc-frame "alpha") (%fc-frame "bravo")))))
+```
+---
+    (#t () 'prim #t)
+
 ### a module loaded by include, or not loaded, has no closures of its own
 
 ```x
