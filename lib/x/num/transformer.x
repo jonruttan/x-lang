@@ -495,12 +495,13 @@
 ; the steps run in order.
 ;
 ;   embed    an id's row of the items plus its position's row
-;   layer    a row times a weight, plus a bias
-;   norm     a row less its mean and over its deviation, times a gain, plus a bias
+;   layer    a row times a weight, plus a bias, each sum split over 32 threads
+;   norm     a row less its mean and over its deviation, times a gain, plus a bias, in one group
 ;   gelu     a row's gelu, the tanh form, in place
 ;   add      a row added into another
 ;   store    a position's queries, keys and values written into the block's cache
-;   attend   the position's attention over the cache's rows up to it, a head a thread
+;   attend   the position's attention over the cache's rows up to it, a head a simdgroup
+;   score    the normed row times each row of the items, a row to a simdgroup
 ;
 ; The GPU works in single precision throughout, where the kernels of the
 ; general pass sum in double: a score differs in its last places between
@@ -511,6 +512,11 @@
 ; wanted: it works the position out, and answers the id picked or nil.
 ; RELEASE gives the buffers back.  A model keeps its work from one
 ; generate to the next (%tf-work-for), and release gives it back.
+; A layer's grid is a column a thread across and 32 down: the threads of
+; a column each sum a share of its products, neighbouring threads reading
+; neighbouring floats of a weight's row, and the first of them adds the
+; shares up.  Where a group is shorter than 32, each group down a column
+; sums the whole of it, and they write the same sum.
 (def %tf-layer-source "#include <metal_stdlib>
 using namespace metal;
 kernel void layer(device const float* a [[buffer(0)]],
@@ -518,29 +524,74 @@ kernel void layer(device const float* a [[buffer(0)]],
                   device const float* bias [[buffer(2)]],
                   device float* c [[buffer(3)]],
                   device const uint* dims [[buffer(4)]],
-                  uint2 at [[thread_position_in_grid]]) {
+                  uint2 at [[thread_position_in_grid]],
+                  uint2 in [[thread_position_in_threadgroup]],
+                  uint2 group [[threads_per_threadgroup]]) {
+  threadgroup float part[1024];
   uint m = dims[0], k = dims[1];
   float sum = 0.0f;
-  for (uint j = 0; j < m; j++) sum += a[j] * w[j * k + at.x];
-  c[at.x] = sum + bias[at.x];
+  for (uint j = in.y; j < m; j += group.y) sum += a[j] * w[j * k + at.x];
+  part[in.y * group.x + in.x] = sum;
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  if (in.y == 0) {
+    for (uint i = 1; i < group.y; i++) sum += part[i * group.x + in.x];
+    c[at.x] = sum + bias[at.x];
+  }
 }")
 
+; A score: a row of the items times the normed row.  Each simdgroup of 32
+; threads takes a row, each thread a 32nd of it, so neighbouring threads
+; read neighbouring floats.  dims: the width, the rows.
+(def %tf-score-source "#include <metal_stdlib>
+using namespace metal;
+kernel void score(device const float* items [[buffer(0)]],
+                  device const float* x [[buffer(1)]],
+                  device float* out [[buffer(2)]],
+                  device const uint* dims [[buffer(3)]],
+                  uint2 at [[thread_position_in_grid]],
+                  uint lane [[thread_index_in_simdgroup]]) {
+  uint w = dims[0], row = at.x / 32;
+  if (row >= dims[1]) return;
+  device const float* r = items + row * w;
+  float sum = 0.0f;
+  for (uint j = lane; j < w; j += 32) sum += r[j] * x[j];
+  sum = simd_sum(sum);
+  if (lane == 0) out[row] = sum;
+}")
+
+; A norm's grid is one group of 32 by 32: the threads sum a share of the
+; row each, and the simdgroups' sums are added up through the group's
+; memory.  Where a group is smaller, each group norms the whole row.
 (def %tf-norm-source "#include <metal_stdlib>
 using namespace metal;
+float norm_total(float v, threadgroup float* share, uint lane, uint sg, uint sgs) {
+  v = simd_sum(v);
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  if (lane == 0) share[sg] = v;
+  threadgroup_barrier(mem_flags::mem_threadgroup);
+  float total = 0.0f;
+  for (uint i = 0; i < sgs; i++) total += share[i];
+  return total;
+}
 kernel void norm(device const float* x [[buffer(0)]],
                  device const float* gain [[buffer(1)]],
                  device const float* bias [[buffer(2)]],
                  device float* out [[buffer(3)]],
                  device const uint* dims [[buffer(4)]],
-                 uint2 at [[thread_position_in_grid]]) {
-  uint n = dims[0];
-  float mean = 0.0f;
-  for (uint i = 0; i < n; i++) mean += x[i];
-  mean /= (float)n;
-  float spread = 0.0f;
-  for (uint i = 0; i < n; i++) { float d = x[i] - mean; spread += d * d; }
-  float deviation = sqrt(spread / (float)n + 0.00001f);
-  for (uint i = 0; i < n; i++) out[i] = (x[i] - mean) / deviation * gain[i] + bias[i];
+                 uint2 in [[thread_position_in_threadgroup]],
+                 uint2 group [[threads_per_threadgroup]],
+                 uint lane [[thread_index_in_simdgroup]],
+                 uint sg [[simdgroup_index_in_threadgroup]],
+                 uint sgs [[simdgroups_per_threadgroup]]) {
+  threadgroup float share[32];
+  uint n = dims[0], t = in.y * group.x + in.x, all = group.x * group.y;
+  float s = 0.0f;
+  for (uint i = t; i < n; i += all) s += x[i];
+  float mean = norm_total(s, share, lane, sg, sgs) / (float)n;
+  s = 0.0f;
+  for (uint i = t; i < n; i += all) { float d = x[i] - mean; s += d * d; }
+  float deviation = sqrt(norm_total(s, share, lane, sg, sgs) / (float)n + 0.00001f);
+  for (uint i = t; i < n; i += all) out[i] = (x[i] - mean) / deviation * gain[i] + bias[i];
 }")
 
 ; tanh's argument is kept within 10 of 0: past that a single's tanh is 1
@@ -573,37 +624,37 @@ kernel void store(device const float* row [[buffer(0)]],
 }")
 
 ; dims: the width, a head's width.  A cache row is the queries, the keys
-; and the values side by side, each a head after another.
+; and the values side by side, each a head after another.  A head is a
+; simdgroup's, each thread a 32nd of its channels; the softmax is taken
+; as the rows are read, the sum so far scaled down whenever a higher
+; score is met.
 (def %tf-attend-source "#include <metal_stdlib>
 using namespace metal;
 kernel void attend(device const float* cache [[buffer(0)]],
                    device float* out [[buffer(1)]],
                    device const uint* place [[buffer(2)]],
                    device const uint* dims [[buffer(3)]],
-                   uint2 at [[thread_position_in_grid]]) {
+                   uint2 at [[thread_position_in_grid]],
+                   uint lane [[thread_index_in_simdgroup]]) {
   uint from = place[0], w = dims[0], hw = dims[1];
-  uint row = 3 * w, head = at.x * hw;
+  uint row = 3 * w, head = (at.x / 32) * hw;
   uint q = from * row + head;
   float root = sqrt((float)hw);
-  float top = 0.0f;
-  for (uint p = 0; p <= from; p++) {
-    uint k = p * row + w + head;
-    float s = 0.0f;
-    for (uint c = 0; c < hw; c++) s += cache[q + c] * cache[k + c];
-    s /= root;
-    if (p == 0 || s > top) top = s;
-  }
-  for (uint c = 0; c < hw; c++) out[head + c] = 0.0f;
-  float sum = 0.0f;
+  float top = 0.0f, sum = 0.0f;
+  for (uint c = lane; c < hw; c += 32) out[head + c] = 0.0f;
   for (uint p = 0; p <= from; p++) {
     uint k = p * row + w + head, v = p * row + 2 * w + head;
     float s = 0.0f;
-    for (uint c = 0; c < hw; c++) s += cache[q + c] * cache[k + c];
-    float e = exp(s / root - top);
-    sum += e;
-    for (uint c = 0; c < hw; c++) out[head + c] += e * cache[v + c];
+    for (uint c = lane; c < hw; c += 32) s += cache[q + c] * cache[k + c];
+    s = simd_sum(s) / root;
+    float high = (p == 0) ? s : max(top, s);
+    float scale = exp(top - high), e = exp(s - high);
+    if (p == 0) scale = 0.0f;
+    sum = sum * scale + e;
+    for (uint c = lane; c < hw; c += 32) out[head + c] = out[head + c] * scale + e * cache[v + c];
+    top = high;
   }
-  for (uint c = 0; c < hw; c++) out[head + c] /= sum;
+  for (uint c = lane; c < hw; c += 32) out[head + c] /= sum;
 }")
 
 ; place: the position, then the id.  dims: the width.
@@ -640,10 +691,10 @@ kernel void embed(device const float* items [[buffer(0)]],
                 (d-out (word (list width wide))) (d-back (word (list wide width))))
             (let ((layer (fn (_ a l dims out count)
                            (Gpu %step (lit layer) %tf-layer-source
-                             (list (buf a) (buf (first l)) (buf (hold (rest l))) (buf out) dims) count 1)))
+                             (list (buf a) (buf (first l)) (buf (hold (rest l))) (buf out) dims) count 32)))
                   (norm (fn (_ g)
                           (Gpu %step (lit norm) %tf-norm-source
-                            (list (buf x) (buf (hold (first g))) (buf (hold (rest g))) (buf n) d-width) 1 1)))
+                            (list (buf x) (buf (hold (first g))) (buf (hold (rest g))) (buf n) d-width) 32 32)))
                   (add (fn (_ y) (Gpu %step (lit add) %tf-add-source (list (buf x) (buf y)) width 1))))
               (let ((blocks
                       (List flat-map
@@ -652,7 +703,7 @@ kernel void embed(device const float* items [[buffer(0)]],
                             (list (norm (List ref 0 b))
                                   (layer n (List ref 1 b) d-in qkv across)
                                   (Gpu %step (lit store) %tf-store-source (list (buf qkv) (buf cache) place d-across) across 1)
-                                  (Gpu %step (lit attend) %tf-attend-source (list (buf cache) (buf t) place d-attend) heads 1)
+                                  (Gpu %step (lit attend) %tf-attend-source (list (buf cache) (buf t) place d-attend) (int* 32 heads) 1)
                                   (layer t (List ref 2 b) d-same o width)
                                   (add o)
                                   (norm (List ref 3 b))
@@ -661,14 +712,17 @@ kernel void embed(device const float* items [[buffer(0)]],
                                   (layer h (List ref 5 b) d-back o width)
                                   (add o))))
                         (m %blocks)))
-                    ; the scores: the items times the last row as a column
-                    (scoring (Gpu %plan (m %items) (Tensor %make ((obj-ref f 11) (n %st) (list width) (list 1) 0)))))
+                    ; the scores: every row of the items times the normed row
+                    (many (first ((m %items) extent))))
                 (let ((body (pair (Gpu %step (lit embed) %tf-embed-source
                                     (list (buf (m %items)) (buf (hold (m %positions))) (buf x) place d-width) width 1)
                                   blocks))
-                      (scores (Gpu %plan-out scoring)))
-                  (let ((all (List append body (list (norm (m %norm)) (Gpu %plan-step scoring))))
-                        (at-scores ((obj-ref f 13) (scores %st))) (many (first (scores extent))))
+                      (scores (hold (Tensor %make ((obj-ref f 4) (lit f32) (list many))))))
+                  (let ((all (List append body
+                               (list (norm (m %norm))
+                                     (Gpu %step (lit score) %tf-score-source
+                                       (list (buf (m %items)) (buf n) (buf scores) (word (list width many))) (int* 32 many) 1))))
+                        (at-scores ((obj-ref f 13) (scores %st))))
                     (pair
                       (fn (_ id from pick)
                         (Gpu %word! place 0 from)
@@ -678,7 +732,6 @@ kernel void embed(device const float* items [[buffer(0)]],
                           ; the scores are held to here, so their address stayed good
                           (do scores next)))
                       (fn (_)
-                        (Gpu %plan-done scoring #f)
                         (List for-each (fn (_ b) (Gpu %words-done b)) (first words))
                         (%set-first! words ())
                         (List for-each (fn (_ r) (Gpu release r)) (first holds))
