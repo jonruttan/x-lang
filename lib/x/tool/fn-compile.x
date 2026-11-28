@@ -32,7 +32,9 @@
 ;              symbol->str, called the same way; a send (C SEL ...) to a class's
 ;              public static method, as a call of the method method-of
 ;              resolves, and to its own public static field, as a call of
-;              the class
+;              the class; a send (L SEL ...) to a local, SEL a name bound
+;              nowhere, as a call of L's value with the selector, which
+;              dispatches as it does interpreted
 ;
 ; A free name is read through its binding cell, found by the engine's lookup
 ; when F is compiled ((Env cell ...)): a later set! or def of the name is
@@ -711,7 +713,23 @@
     (and (%fc-memq sel (class-static-fields c))
          (guard (_ #f) (do (eval (list c (list (lit lit) sel)) (Env root)) #t)))))
 
-; (H . ARGS) with H a symbol: what its name means decides the rewrite.
+; Is (H . ARGS), H a local, a send: its first operand a name bound nowhere
+; when F is compiled, neither a local nor in F's environment?  As a call of
+; a closure the form could only raise, the name being unbound; a value that
+; dispatches, an object or a class or a string, takes the name as its
+; selector.
+(def %fc-local-send?
+  (fn (_ args)
+    (and (pair? args) (symbol? (first args))
+         (not (eq? (first args) %fc-self))
+         (not (%fc-memq (first args) %fc-names))
+         (null? (Env cell %fc-env (first args))))))
+
+; (H . ARGS) with H a symbol: what its name means decides the rewrite.  A
+; send to a local is a call of its value with the selector as a literal and
+; the operands as values: the value's own handler dispatches, as it does
+; interpreted, so a field, a private member, an inherited method and one
+; defined later are each found as before.
 (def %fc-named-call
   (fn (_ h args mode)
     (def m (%fc-meaning h))
@@ -719,6 +737,8 @@
       (fn (_ e) (if (eq? mode (lit raw)) (list (lit %unbox) e) e)))
     (match
       ((eq? (first m) (lit self)) (value (%fc-call (lit %fc-self) args)))
+      ((and (eq? (first m) (lit local)) (%fc-local-send? args))
+        (value (%fc-call h (pair (list (lit lit) (first args)) (rest args)))))
       ((eq? (first m) (lit local)) (value (%fc-call h args)))
       (#t (%fc-free-call h (rest m) args mode)))))
 
@@ -1463,7 +1483,7 @@
   (param f ANY "A closure made by fn")
   (returns Compiled "The entry: (entry state) is compiled, or failed with (entry reason)")
   (sample "((compile-fn! 'fib fib) state)" "compiled, and every holder of fib now calls the compiled version")
-  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let compile in place, and a named let as the fn literal it stands for, ((fn (name ...) body ...) init ...); a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn. A fn literal is outlined and handed the locals of F it reads as values: one called where it is written, ((fn (self ...) ...) arg ...), with self only at the head of a call, becomes a closure taking those locals as parameters, compiled in turn; one that reads no local is made once and compiled in turn; any other answers a closure holding the values whose one call is of its body compiled in turn, so its self-calls stay compiled; one whose locals F writes after it, or whose body sets one, is refused. A call of any other closure, of a C primitive the engine's ISA manifest does not label spine, by name or fetched where it is called as ((prim-ref (lit group) (lit name)) ...), or of display, error or symbol->str passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it. A rest parameter, (fn (self a . more) ...), is bound to the list of the arguments after a's, and such a function's self-call is a call and not a jump. Applied, by apply or by the engine as a type's handler is, the compiled F takes the values it is handed as a closure does: the first compile puts a routine in this base's callable-apply slot (Base slot!) that tells it so, and a state image is written with the engine's routine back in the slot. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
+  "Compile the closure F where it stands: every holder of F calls the compiled version from here on, and the interpreted version stays on the Compiled list as the reference. Integer doors, obj-ref, obj-set!, first, rest, pair, eq?, null?, pair?, symbol?, not, if, when, unless, match, do, and, or, def, set! and let compile in place, and a named let as the fn literal it stands for, ((fn (name ...) body ...) init ...); a (guard (name handler) body) is outlined into two closures, run by the engine's guard and compiled in turn. A fn literal is outlined and handed the locals of F it reads as values: one called where it is written, ((fn (self ...) ...) arg ...), with self only at the head of a call, becomes a closure taking those locals as parameters, compiled in turn; one that reads no local is made once and compiled in turn; any other answers a closure holding the values whose one call is of its body compiled in turn, so its self-calls stay compiled; one whose locals F writes after it, or whose body sets one, is refused. A call of any other closure, of a C primitive the engine's ISA manifest does not label spine, by name or fetched where it is called as ((prim-ref (lit group) (lit name)) ...), or of display, error or symbol->str passes it values, and a send (C sel ...) to a class's public static method calls the method method-of resolves when F is compiled, and one to its own public static field calls the class to read or write it; a send (l sel ...) to a local, sel a name bound nowhere when F is compiled, calls the local's value with the selector, and the value dispatches as it does interpreted. A rest parameter, (fn (self a . more) ...), is bound to the list of the arguments after a's, and such a function's self-call is a call and not a jump. Applied, by apply or by the engine as a type's handler is, the compiled F takes the values it is handed as a closure does: the first compile puts a routine in this base's callable-apply slot (Base slot!) that tells it so, and a state image is written with the engine's routine back in the slot. A body with a form the rewrite cannot carry leaves F interpreted, with the reason on the entry; anything but a closure raises a type error and makes no entry.")
 
 ; The library's own hot loops, compiled wherever the compiler loads: the
 ; tower dialects import this module at boot, and a program on helium that

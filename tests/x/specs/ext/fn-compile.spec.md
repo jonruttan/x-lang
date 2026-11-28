@@ -386,6 +386,48 @@ the root, changes nothing.
 ---
     ('compiled 'compiled 8 42 40 'failed)
 
+
+### a send to a local dispatches as it does interpreted
+
+A field read and write, a method, and a subclass's override of it, each
+through the same compiled closure.
+
+```x
+(def-class FcBox ()
+  (fc-side 2)
+  (method fc-area (self) (int* (self fc-side) (self fc-side)))
+  (method fc-scaled (self k) (int* k (self fc-area))))
+(def-class FcSlab (extends FcBox)
+  (method fc-area (self) (int* 10 (self fc-side))))
+(def %fc-ls (fn (_ b k) (b fc-side (int+ (b fc-side) 1)) (list (b fc-side) (b fc-area) (b fc-scaled (int+ k 1)))))
+(def %fc-ls-all (fn (_) (list (%fc-ls (FcBox new) 1) (%fc-ls (FcSlab new) 1))))
+(def %fc-ls-before (%fc-ls-all))
+(def %fc-e (compile-fn! (lit %fc-ls) %fc-ls))
+(write (list (%fc-e state) (equal? %fc-ls-before (%fc-ls-all)) (%fc-ls-all)))
+```
+---
+    ('compiled #t ((3 9 18) (3 30 60)))
+
+### a send to a local that is a string or a class, and one that misses, answer as interpreted
+
+```x
+(def-class FcShelf ()
+  (static (method fc-count (self l) (List length l)))
+  (private (method fc-hidden (self) 1)))
+(def %fc-lv (fn (_ v) (v fc-count (list 1 2 3))))
+(def %fc-lp (fn (_ v) (v fc-hidden)))
+(def %fc-lv-all
+  (fn (_)
+    (list (%fc-lv FcShelf)
+          (guard (e (Err text e)) (%fc-lv "abc"))
+          (guard (e (Err text e)) (%fc-lp (FcShelf new))))))
+(def %fc-lv-before (%fc-lv-all))
+(def %fc-states (list ((compile-fn! (lit %fc-lv) %fc-lv) state) ((compile-fn! (lit %fc-lp) %fc-lp) state)))
+(write (list %fc-states (equal? %fc-lv-before (%fc-lv-all)) (first (%fc-lv-all))))
+```
+---
+    (('compiled 'compiled) #t 3)
+
 ### a guard runs its body and its handler as the interpreter does
 
 ```x
