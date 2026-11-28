@@ -143,6 +143,17 @@ On the last row, where the cells end, and on a row above a wide character the ne
 ---
     (3 "a  b    c" "" "d")
 
+### a page of many thousand lines is laid out, text or blocks: no walk over its lines waits a call a line
+
+```x
+(do (import x/tui/page)
+  (def t (Page text (Str8 join "" (List map (fn (_ i) (Str8 append (%number->str i) "\n")) (List range 0 12000))) 80))
+  (def m (Page markdown (List map (fn (_ i) (list 'paragraph (list (%number->str i)))) (List range 0 6000)) 80))
+  (list (Page count t) (Page line-text t 11999) (Page count m) (Page line-text m 11998)))
+```
+---
+    (12000 "11999" 11999 "5999")
+
 ## Window and Tabs
 
 ### links selected in turn scroll into view; the bar lists the tabs
