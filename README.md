@@ -285,8 +285,9 @@ honoured for staged and packaged installs. Remove with `make uninstall` (same
 
 ```sh
 x                           # helium (the default) + REPL
-x -l xe                     # xenon: full-stack with numeric tower
-x -l rn                     # radon: experimental
+x -l ne                     # neon: the base for a lang bundle
+x -l xe                     # xenon: x-lang's full language, numeric tower loaded
+x -l rn                     # radon
 x -f program.x              # evaluate a file
 
 # Evaluate an expression, or a program on stdin

@@ -157,18 +157,21 @@ The REPL loop in x-engine-c's `src/x-cli.c` runs these stages in sequence: promp
 
 ### Dialect System
 
-The library is composed into dialects that control what capabilities are loaded. Each dialect includes all of the previous:
+The library is composed into dialects that control what is loaded when a session starts. Neon is built on helium, and xenon and radon are each built on neon. [Dialects](dialects.md) says what each is for.
 
-**helium** (`lib/he.x` / `lib/x-core.x`): The light dialect and the default (`lib/x.x` is a pointer to it). Bootstraps the modules providing core operations, combinators, list processing, strings, vectors, promises, quasiquote, the POSIX wrappers, and a REPL. No numeric tower.
+**helium** (`lib/he.x` / `lib/x-core.x`): The minimal base and the default (`lib/x.x` is a pointer to it). Bootstraps the modules providing core operations, combinators, list processing, strings, vectors, promises, quasiquote, the POSIX wrappers, and a REPL. No numeric tower.
 
-**xenon** (`lib/xe.x`): Stable full-stack dialect. Adds the assembler and compiler, regular expressions, `Dict` and `Set`, and a numeric tower (bigint, float, rational, complex, decimal). Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
+**neon** (`lib/ne.x`): The base for a language built on x-lang. Adds the assembler and compiler, the Lexer and `Dict`, and compiles the reader hooks the core installed. No numeric tower and no reader syntax beyond helium's.
 
-**radon** (`lib/rn.x`): Experimental dialect. Everything in xenon plus car/cdr composition helpers, character constants, and I/O handle constants. The raw syscall table, `lib/x/sys/file.x` and socket constants are left as opt-in `include`s.
+**xenon** (`lib/xe.x`): x-lang's own full language. Adds regular expressions, `Set`, and a numeric tower (bigint, float, rational, complex, decimal), with the literals that write them. Each numeric type's tokenizer analyser is compiled to native code immediately after loading, so subsequent source files are parsed through fast compiled analysers rather than interpreted ones.
+
+**radon** (`lib/rn.x`): Built on neon with everything xenon adds, plus car/cdr composition helpers, character constants, I/O handle constants, `system` and `do-loop`, none of them promised. `lib/x/sys/file.x` and the socket constants are an import, as in every dialect.
 
 Dialects are selected via the shell wrapper's `-l` flag:
 
 ```sh
 sh x.sh              # helium (default)
+sh x.sh -l ne        # neon
 sh x.sh -l xe        # xenon
 sh x.sh -l rn        # radon
 ```

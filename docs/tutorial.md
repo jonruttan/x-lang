@@ -53,8 +53,9 @@ documented name. What you type is coloured as you type it. It is built in —
 there is nothing to install and nothing to wrap the session in.
 [The REPL reference](repl.md) has the rest.
 
-For the full-stack dialect (xenon) with the numeric tower, the compiler,
-regular expressions, and `Dict` and `Set`:
+That session is helium, the default dialect and the minimal base. Xenon is
+x-lang's own full language, which loads the numeric tower, regular
+expressions, and `Dict` and `Set` when it starts:
 
 ```sh
 sh x.sh -l xe
@@ -290,7 +291,7 @@ for instance:
 #(0 0 0)
 ```
 
-Capabilities the dialect does *not* pre-load are one `import` away:
+A library the dialect does not load is one `import` away:
 
 ```x-repl
 > (import x/type/hash)
@@ -298,9 +299,11 @@ Capabilities the dialect does *not* pre-load are one `import` away:
 "a430d84680aabd0b"
 ```
 
-In the xenon dialect, the numeric tower is pre-loaded:
+The numeric tower is an import as well. `x/num/tower` loads the numeric
+types with the literals that write them; xenon loads it when it starts:
 
 ```x-repl
+> (import x/num/tower)
 > (Num expt 2 100)
 1267650600228229401496703205376
 > (+ 1/3 1/6)
@@ -327,11 +330,15 @@ Use `modules` to list all registered modules:
 
 ## Choosing a Dialect
 
-| Dialect | Load Command | Use Case |
+| Dialect | Load Command | What it is for |
 |---------|-------------|----------|
-| helium | `sh x.sh` | General programming, scripting, learning (the default) |
-| xenon | `sh x.sh -l xe` | Numeric computing, full-stack applications |
-| radon | `sh x.sh -l rn` | Systems programming, OS interaction |
+| helium | `sh x.sh` | The minimal base and the default: the core libraries |
+| neon | `sh x.sh -l ne` | The base for a language built on x-lang: helium plus the compiler and the Lexer |
+| xenon | `sh x.sh -l xe` | x-lang's own full language: neon plus the numeric tower, regular expressions, `Set`, and their literals |
+| radon | `sh x.sh -l rn` | Built on neon as xenon is, with a few names of its own that are not promised |
+
+When a dialect lacks a function, import the module that has it; a different
+dialect is not the answer. [Dialects](dialects.md) says what each one loads.
 
 ## Other Languages
 

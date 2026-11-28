@@ -33,10 +33,11 @@ in it; it does not repeat the reference.
 | `lib/x/doc/` | the `doc` form, the registry behind `help` and `apropos`, the generators |
 | `lib/x/platform/` | the syscall tables, directory entries and socket constants per platform |
 
-Which modules a session has depends on its dialect: helium loads the core,
-the types, POSIX and the REPL; xenon adds the numeric tower, regular
-expressions, `Dict` and `Set`, and the assembler and compiler; radon adds the
-raw syscall layer. [Dialects](dialects.md) has
+Which modules a session starts with depends on its dialect: helium loads the
+core, the types, POSIX and the REPL; neon adds the assembler, the compiler,
+the Lexer and `Dict`; xenon and radon each add the numeric tower, regular
+expressions and `Set` to neon. Any module a dialect does not load is an
+import. [Dialects](dialects.md) has
 the composition, and `(modules)` lists every module with a `[loaded]` mark
 beside those the running session has.
 
