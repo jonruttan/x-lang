@@ -738,12 +738,53 @@ theirs.
 ---
     ('failed 5)
 
-### a named let is refused
+### a named let is compiled as the fn literal it stands for
 
 ```x
-(def %fc-nlet (fn (_ n) (let loop ((i n) (acc 0)) (if (int= i 0) acc (loop (int- i 1) (int+ acc i))))))
+(def %fc-nlet
+  (fn (_ n k)
+    (let loop ((i n) (acc 0)) (if (int= i 0) acc (loop (int- i 1) (int+ acc (int+ i k)))))))
+(def %fc-nlet-before (%fc-nlet 1000 1))
 (def %fc-e (compile-fn! (lit %fc-nlet) %fc-nlet))
-(write (list (%fc-e state) (%fc-nlet 4)))
+(write (list (%fc-e state) (equal? %fc-nlet-before (%fc-nlet 1000 1)) (%fc-nlet 4 0)))
+```
+---
+    ('compiled #t 10)
+
+### a named let loop allocates what a self-call loop does
+
+```x
+(def %fc-nl (fn (_ n) (let loop ((i n) (acc 0)) (if (int< i 1) acc (loop (int- i 1) (int+ acc i))))))
+(def %fc-sl (fn (self n acc) (if (int< n 1) acc (self (int- n 1) (int+ acc n)))))
+(compile-fn! (lit %fc-nl) %fc-nl)
+(compile-fn! (lit %fc-sl) %fc-sl)
+(def %fc-c0 (Heap count))
+(def %fc-nl-n (%fc-nl 1000))
+(def %fc-c1 (Heap count))
+(def %fc-sl-n (%fc-sl 1000 0))
+(def %fc-c2 (Heap count))
+(write (list %fc-nl-n %fc-sl-n (int< (- (- %fc-c1 %fc-c0) (- %fc-c2 %fc-c1)) 100)))
+```
+---
+    (500500 500500 #t)
+
+### a named let whose name is a value, or not at the head, answers as interpreted
+
+```x
+(def %fc-nlv (fn (_ n) (let loop ((i n)) (if (int= i 0) (List length (list loop)) (loop (int- i 1))))))
+(def %fc-nlm (fn (_ l) (let walk ((l l) (acc ())) (if (null? l) acc (walk (rest l) (pair (int+ (first l) 1) acc))))))
+(write (List map (fn (_ f) ((compile-fn! (lit f) f) state)) (list %fc-nlv %fc-nlm)))
+(write (list (%fc-nlv 3) (%fc-nlm (list 1 2 3))))
+```
+---
+    ('compiled 'compiled)(1 (4 3 2))
+
+### a named let that sets a local of the function is refused
+
+```x
+(def %fc-nls (fn (_ n) (def total 0) (let loop ((i n)) (unless (int= i 0) (set! total (int+ total i)) (loop (int- i 1)))) total))
+(def %fc-e (compile-fn! (lit %fc-nls) %fc-nls))
+(write (list (%fc-e state) (%fc-nls 4)))
 ```
 ---
     ('failed 10)
